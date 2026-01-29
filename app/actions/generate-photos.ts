@@ -1,13 +1,12 @@
 "use server";
 
-import { FilePart, generateText, ModelMessage } from "ai";
+import { FilePart, generateText } from "ai";
+import { put } from "@vercel/blob";
 
 export interface GeneratedPhoto {
   slot: number;
-  image: {
-    base64: string;
-    mediaType: string;
-  }
+  url: string;
+  mediaType: string;
 }
 
 export interface GeneratePhotosResult {
@@ -51,15 +50,24 @@ export async function generatePhotos(
           ]
         }],
       });
-      const [file] = result.files
+      const [file] = result.files;
+      
+      // Convert base64 to buffer and upload to Vercel Blob
+      const buffer = Buffer.from(file.base64, "base64");
+      const extension = file.mediaType.split("/")[1] || "png";
+      const filename = `generated-${slot}-${Date.now()}.${extension}`;
+      
+      const blob = await put(filename, buffer, {
+        access: "public",
+        contentType: file.mediaType,
+      });
+
       return {
         slot,
-        image: {
-          base64: file.base64,
-          mediaType: file.mediaType,
-        },
-      }
-    }))
+        url: blob.url,
+        mediaType: file.mediaType,
+      };
+    }));
 
     return {
       success: true,

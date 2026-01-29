@@ -11,7 +11,6 @@ import {
   saveGeneratedPhotos,
   deleteGeneratedPhotoBySlot,
   swapGeneratedPhotoSlots,
-  base64ToBlobUrl,
 } from "@/lib/indexeddb";
 import { Switch } from "./ui/switch";
 
@@ -173,7 +172,7 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
           const photosToAdd = storedPhotos.map((stored) => ({
             slot: stored.slot,
             photo: {
-              src: base64ToBlobUrl(stored.base64, stored.mediaType),
+              src: stored.url,
               alt: `Generated photo ${stored.slot + 1}`,
             },
           }));
@@ -254,16 +253,16 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
       await saveGeneratedPhotos(
         result.photos.map((photo) => ({
           slot: photo.slot,
-          base64: photo.image.base64,
-          mediaType: photo.image.mediaType,
+          url: photo.url,
+          mediaType: photo.mediaType,
         }))
       );
 
-      // Add photos to the profile context (convert base64 to blob URL for display)
+      // Add photos to the profile context
       const photosToAdd = result.photos.map((photo) => ({
         slot: photo.slot,
         photo: {
-          src: base64ToBlobUrl(photo.image.base64, photo.image.mediaType),
+          src: photo.url,
           alt: `Generated photo ${photo.slot + 1}`,
         },
       }));

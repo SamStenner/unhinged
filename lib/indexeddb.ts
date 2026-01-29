@@ -16,7 +16,7 @@ export interface StoredUploadedImage {
 export interface StoredGeneratedPhoto {
   id: string;
   slot: number;
-  base64: string;
+  url: string;
   mediaType: string;
   createdAt: number;
 }
@@ -262,10 +262,10 @@ export async function swapGeneratedPhotoSlots(slotA: number, slotB: number): Pro
       try {
         // Re-add with swapped slots
         if (photoA) {
-          await saveGeneratedPhoto({ slot: slotB, base64: photoA.base64, mediaType: photoA.mediaType });
+          await saveGeneratedPhoto({ slot: slotB, url: photoA.url, mediaType: photoA.mediaType });
         }
         if (photoB) {
-          await saveGeneratedPhoto({ slot: slotA, base64: photoB.base64, mediaType: photoB.mediaType });
+          await saveGeneratedPhoto({ slot: slotA, url: photoB.url, mediaType: photoB.mediaType });
         }
         resolve();
       } catch (error) {

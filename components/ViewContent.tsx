@@ -10,7 +10,6 @@ import {
   getAllUploadedImages,
   saveGeneratedPhotos,
   deleteGeneratedPhotoBySlot,
-  base64ToBlobUrl,
 } from "@/lib/indexeddb";
 
 export default function ViewContent() {
@@ -79,17 +78,14 @@ export default function ViewContent() {
       await saveGeneratedPhotos([
         {
           slot: generatedPhoto.slot,
-          base64: generatedPhoto.image.base64,
-          mediaType: generatedPhoto.image.mediaType,
+          url: generatedPhoto.url,
+          mediaType: generatedPhoto.mediaType,
         },
       ]);
 
       // Add to context
       addPhotoToSlot(slot, {
-        src: base64ToBlobUrl(
-          generatedPhoto.image.base64,
-          generatedPhoto.image.mediaType
-        ),
+        src: generatedPhoto.url,
         alt: `Generated photo ${slot + 1}`,
       });
     } catch (error) {
