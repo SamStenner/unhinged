@@ -1,11 +1,16 @@
 "use client";
 
-import { GiftIcon, SettingsIcon } from "lucide-react";
+import { GiftIcon } from "lucide-react";
+import InviteDrawer from "./InviteDrawer";
+import SettingsDrawer from "./SettingsDrawer";
 
 interface ProfileHeaderProps {
   activeTab: "edit" | "view";
   onTabChange: (tab: "edit" | "view") => void;
 }
+
+// Placeholder balance - would come from context/state
+const petalBalance = 60;
 
 export default function ProfileHeader({
   activeTab,
@@ -15,18 +20,24 @@ export default function ProfileHeader({
     <div className="fixed top-0 left-1/2 -translate-x-1/2 z-50 bg-white w-full max-w-[430px]">
       {/* Top row - Cancel / Name / Done */}
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
-        <button
-          type="button"
-          className="font-medium text-base"
-        >
-          <GiftIcon className="size-5" />
-        </button>
+        <InviteDrawer>
+          <button
+            type="button"
+            className="font-medium text-base hover:opacity-70 transition-opacity"
+          >
+            <GiftIcon className="size-5" />
+          </button>
+        </InviteDrawer>
         <h1 className="text-xl font-semibold text-primary">Unhinged</h1>
-        <button
-          type="button"
-        >
-          <SettingsIcon className="size-5" />
-        </button>
+        <SettingsDrawer>
+          <button
+            type="button"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#67295F]/10 to-[#67295F]/5 hover:from-[#67295F]/15 hover:to-[#67295F]/10 rounded-full transition-all"
+          >
+            <span className="text-sm">🌸</span>
+            <span className="text-sm font-semibold text-[#67295F]">{petalBalance}</span>
+          </button>
+        </SettingsDrawer>
       </div>
 
       {/* Tab row */}
