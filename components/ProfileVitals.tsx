@@ -1,20 +1,65 @@
 "use client";
 
-import { HTMLAttributes, useState } from "react";
+import { HTMLAttributes, useState, ReactNode } from "react";
 import { useProfile } from "@/lib/profile-context";
 import { ChevronRightIcon } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Button } from "./ui/button";
+import { useIsMobile } from "@/lib/is-mobile";
 import {
   Drawer,
-  DrawerClose,
   DrawerContent,
   DrawerFooter,
   DrawerHeader,
   DrawerTitle,
 } from "./ui/drawer";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+
+interface ResponsiveModalProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title: string;
+  children: ReactNode;
+  footer?: ReactNode;
+}
+
+function ResponsiveModal({ open, onOpenChange, title, children, footer }: ResponsiveModalProps) {
+  const isMobile = useIsMobile();
+
+  if (isMobile) {
+    return (
+      <Drawer open={open} onOpenChange={onOpenChange}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>{title}</DrawerTitle>
+          </DrawerHeader>
+          {children}
+          {footer && <DrawerFooter>{footer}</DrawerFooter>}
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        {children}
+        {footer && <DialogFooter className="flex-col sm:flex-col">{footer}</DialogFooter>}
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 const genderOptions = ["Man", "Woman"];
 
@@ -140,179 +185,179 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
         </div>
       </div>
 
-      {/* Gender Edit Drawer */}
-      <Drawer open={editingField === "gender"} onOpenChange={(open) => !open && setEditingField(null)}>
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle>Gender</DrawerTitle>
-          </DrawerHeader>
-          <div className="px-4 pb-4">
-            <RadioGroup
-              value={profile.gender || ""}
-              onValueChange={(value) => {
-                handleGenderSelect(value);
-                setEditingField(null);
-              }}
-              className="space-y-2"
-            >
-              {genderOptions.map((gender) => (
-                <Label
-                  key={gender}
-                  className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${profile.gender === gender
-                    ? "border-[#67295F] bg-[#67295F]/5"
-                    : "border-gray-200 hover:border-gray-300"
-                    }`}
-                >
-                  <RadioGroupItem value={gender} className="sr-only" />
-                  <span className={`text-[16px] font-medium ${profile.gender === gender ? "text-[#67295F]" : "text-gray-700"}`}>
-                    {gender}
-                  </span>
-                </Label>
-              ))}
-            </RadioGroup>
-          </div>
-          <DrawerFooter>
-            <DrawerClose asChild>
-              <Button variant="outline" className="w-full">Cancel</Button>
-            </DrawerClose>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
+      {/* Gender Edit Modal */}
+      <ResponsiveModal
+        open={editingField === "gender"}
+        onOpenChange={(open) => !open && setEditingField(null)}
+        title="Gender"
+        footer={
+          <Button variant="outline" className="w-full" onClick={() => setEditingField(null)}>
+            Cancel
+          </Button>
+        }
+      >
+        <div className="px-4 pb-4">
+          <RadioGroup
+            value={profile.gender || ""}
+            onValueChange={(value) => {
+              handleGenderSelect(value);
+              setEditingField(null);
+            }}
+            className="space-y-2"
+          >
+            {genderOptions.map((gender) => (
+              <Label
+                key={gender}
+                className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${profile.gender === gender
+                  ? "border-[#67295F] bg-[#67295F]/5"
+                  : "border-gray-200 hover:border-gray-300"
+                  }`}
+              >
+                <RadioGroupItem value={gender} className="sr-only" />
+                <span className={`text-[16px] font-medium ${profile.gender === gender ? "text-[#67295F]" : "text-gray-700"}`}>
+                  {gender}
+                </span>
+              </Label>
+            ))}
+          </RadioGroup>
+        </div>
+      </ResponsiveModal>
 
-      {/* Age Edit Drawer */}
-      <Drawer open={editingField === "age"} onOpenChange={(open) => !open && setEditingField(null)}>
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle>Birthday</DrawerTitle>
-          </DrawerHeader>
-          <div className="px-4 pb-4">
-            <p className="text-[14px] text-gray-500 mb-4">Enter your birthday to calculate your age</p>
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <Label className="text-[12px] text-gray-500 mb-1">Month</Label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="MM"
-                  value={birthdayInput.month}
-                  onChange={(e) => handleBirthdayChange("month", e.target.value)}
-                  className="h-12 rounded-xl text-center text-[16px] font-medium"
-                />
-              </div>
-              <div className="flex-1">
-                <Label className="text-[12px] text-gray-500 mb-1">Day</Label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="DD"
-                  value={birthdayInput.day}
-                  onChange={(e) => handleBirthdayChange("day", e.target.value)}
-                  className="h-12 rounded-xl text-center text-[16px] font-medium"
-                />
-              </div>
-              <div className="flex-[1.5]">
-                <Label className="text-[12px] text-gray-500 mb-1">Year</Label>
-                <Input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="YYYY"
-                  value={birthdayInput.year}
-                  onChange={(e) => handleBirthdayChange("year", e.target.value)}
-                  className="h-12 rounded-xl text-center text-[16px] font-medium"
-                />
-              </div>
+      {/* Age Edit Modal */}
+      <ResponsiveModal
+        open={editingField === "age"}
+        onOpenChange={(open) => !open && setEditingField(null)}
+        title="Birthday"
+        footer={
+          <>
+            <Button
+              onClick={() => setEditingField(null)}
+              className="w-full bg-[#67295F] hover:bg-[#5a2352]"
+            >
+              Done
+            </Button>
+            <Button variant="outline" className="w-full" onClick={() => setEditingField(null)}>
+              Cancel
+            </Button>
+          </>
+        }
+      >
+        <div className="px-4 pb-4">
+          <p className="text-[14px] text-gray-500 mb-4">Enter your birthday to calculate your age</p>
+          <div className="flex gap-3">
+            <div className="flex-1">
+              <Label className="text-[12px] text-gray-500 mb-1">Month</Label>
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder="MM"
+                value={birthdayInput.month}
+                onChange={(e) => handleBirthdayChange("month", e.target.value)}
+                className="h-12 rounded-xl text-center text-[16px] font-medium"
+              />
             </div>
-            {profile.age && profile.age > 0 && (
-              <p className="mt-4 text-[14px] text-[#67295F] font-medium text-center">
-                You&apos;ll be shown as {profile.age} years old
-              </p>
-            )}
+            <div className="flex-1">
+              <Label className="text-[12px] text-gray-500 mb-1">Day</Label>
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder="DD"
+                value={birthdayInput.day}
+                onChange={(e) => handleBirthdayChange("day", e.target.value)}
+                className="h-12 rounded-xl text-center text-[16px] font-medium"
+              />
+            </div>
+            <div className="flex-[1.5]">
+              <Label className="text-[12px] text-gray-500 mb-1">Year</Label>
+              <Input
+                type="text"
+                inputMode="numeric"
+                placeholder="YYYY"
+                value={birthdayInput.year}
+                onChange={(e) => handleBirthdayChange("year", e.target.value)}
+                className="h-12 rounded-xl text-center text-[16px] font-medium"
+              />
+            </div>
           </div>
-          <DrawerFooter>
-            <Button
-              onClick={() => setEditingField(null)}
-              className="w-full bg-[#67295F] hover:bg-[#5a2352]"
-            >
-              Done
-            </Button>
-            <DrawerClose asChild>
-              <Button variant="outline" className="w-full">Cancel</Button>
-            </DrawerClose>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
-
-      {/* Height Edit Drawer */}
-      <Drawer open={editingField === "height"} onOpenChange={(open) => !open && setEditingField(null)}>
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle>Height</DrawerTitle>
-          </DrawerHeader>
-          <div className="px-4 pb-4 max-h-[50vh] overflow-y-auto">
-            <RadioGroup
-              value={profile.height || ""}
-              onValueChange={(value) => {
-                handleHeightSelect(value);
-                setEditingField(null);
-              }}
-              className="space-y-1"
-            >
-              {heightOptions.map((height) => (
-                <Label
-                  key={height}
-                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${profile.height === height
-                    ? "bg-[#67295F]/10 text-[#67295F]"
-                    : "hover:bg-gray-50 text-gray-700"
-                    }`}
-                >
-                  <RadioGroupItem value={height} className="sr-only" />
-                  <span className={`text-[16px] ${profile.height === height ? "font-semibold" : ""}`}>
-                    {height}
-                  </span>
-                </Label>
-              ))}
-            </RadioGroup>
-          </div>
-          <DrawerFooter>
-            <DrawerClose asChild>
-              <Button variant="outline" className="w-full">Cancel</Button>
-            </DrawerClose>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
-
-      {/* Location Edit Drawer */}
-      <Drawer open={editingField === "location"} onOpenChange={(open) => !open && setEditingField(null)}>
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle>Location</DrawerTitle>
-          </DrawerHeader>
-          <div className="px-4 pb-4">
-            <Input
-              type="text"
-              placeholder="City, State"
-              value={profile.location || ""}
-              onChange={(e) => handleLocationChange(e.target.value)}
-              className="h-12 rounded-xl text-[16px]"
-              autoFocus
-            />
-            <p className="mt-2 text-[13px] text-gray-400">
-              Example: San Francisco, CA
+          {profile.age && profile.age > 0 && (
+            <p className="mt-4 text-[14px] text-[#67295F] font-medium text-center">
+              You&apos;ll be shown as {profile.age} years old
             </p>
-          </div>
-          <DrawerFooter>
+          )}
+        </div>
+      </ResponsiveModal>
+
+      {/* Height Edit Modal */}
+      <ResponsiveModal
+        open={editingField === "height"}
+        onOpenChange={(open) => !open && setEditingField(null)}
+        title="Height"
+        footer={
+          <Button variant="outline" className="w-full" onClick={() => setEditingField(null)}>
+            Cancel
+          </Button>
+        }
+      >
+        <div className="px-4 pb-4 max-h-[50vh] overflow-y-auto">
+          <RadioGroup
+            value={profile.height || ""}
+            onValueChange={(value) => {
+              handleHeightSelect(value);
+              setEditingField(null);
+            }}
+            className="space-y-1"
+          >
+            {heightOptions.map((height) => (
+              <Label
+                key={height}
+                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${profile.height === height
+                  ? "bg-[#67295F]/10 text-[#67295F]"
+                  : "hover:bg-gray-50 text-gray-700"
+                  }`}
+              >
+                <RadioGroupItem value={height} className="sr-only" />
+                <span className={`text-[16px] ${profile.height === height ? "font-semibold" : ""}`}>
+                  {height}
+                </span>
+              </Label>
+            ))}
+          </RadioGroup>
+        </div>
+      </ResponsiveModal>
+
+      {/* Location Edit Modal */}
+      <ResponsiveModal
+        open={editingField === "location"}
+        onOpenChange={(open) => !open && setEditingField(null)}
+        title="Location"
+        footer={
+          <>
             <Button
               onClick={() => setEditingField(null)}
               className="w-full bg-[#67295F] hover:bg-[#5a2352]"
             >
               Done
             </Button>
-            <DrawerClose asChild>
-              <Button variant="outline" className="w-full">Cancel</Button>
-            </DrawerClose>
-          </DrawerFooter>
-        </DrawerContent>
-      </Drawer>
+            <Button variant="outline" className="w-full" onClick={() => setEditingField(null)}>
+              Cancel
+            </Button>
+          </>
+        }
+      >
+        <div className="px-4 pb-4">
+          <Input
+            type="text"
+            placeholder="City, State"
+            value={profile.location || ""}
+            onChange={(e) => handleLocationChange(e.target.value)}
+            className="h-12 rounded-xl text-[16px]"
+            autoFocus
+          />
+          <p className="mt-2 text-[13px] text-gray-400">
+            Example: San Francisco, CA
+          </p>
+        </div>
+      </ResponsiveModal>
     </div>
   );
 }

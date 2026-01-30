@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useProfile } from "@/lib/profile-context";
+import { useAuth } from "@/lib/auth-context";
 import { availablePrompts } from "@/lib/mock-data";
 import PhotoGrid from "./PhotoGrid";
 import AIPhotoUpload from "./AIPhotoUpload";
@@ -9,13 +10,18 @@ import WrittenPromptCard from "./WrittenPromptCard";
 import AddPromptCard from "./AddPromptCard";
 import ProfileVitals from "./ProfileVitals";
 import { generatePhotos } from "@/app/actions/generate-photos";
-import {
-  getAllGeneratedPhotos,
-  saveGeneratedPhotos,
-  deleteGeneratedPhotoBySlot,
-  swapGeneratedPhotoSlots,
-} from "@/lib/indexeddb";
 import { Switch } from "./ui/switch";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "./ui/alert-dialog";
 
 interface EditViewProps {
   onDragStart?: () => void;
@@ -23,15 +29,17 @@ interface EditViewProps {
 }
 
 export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
+  const { user, signOut } = useAuth();
   const {
     photos,
     prompts,
+    balance,
     removePhoto,
     removePrompt,
-    addPhotosToSlots,
     addPrompt,
     swapPhotoSlots,
     updatePrompt,
+    refreshFromDatabase,
   } = useProfile();
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -46,38 +54,7 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
     localStorage.setItem("showPrompts", String(showPrompts));
   }, [showPrompts]);
 
-  // Load generated photos from IndexedDB on mount
-  useEffect(() => {
-    const loadGeneratedPhotos = async () => {
-      try {
-        const storedPhotos = await getAllGeneratedPhotos();
-        if (storedPhotos.length > 0) {
-          const photosToAdd = storedPhotos.map((stored) => ({
-            slot: stored.slot,
-            photo: {
-              src: stored.url,
-              alt: `Generated photo ${stored.slot + 1}`,
-            },
-          }));
-          addPhotosToSlots(photosToAdd);
-        }
-      } catch (error) {
-        console.error("Error loading generated photos:", error);
-      }
-    };
-
-    loadGeneratedPhotos();
-  }, [addPhotosToSlots]);
-
-  const handleRemovePhoto = async (id: string) => {
-    const photo = photos.find((p) => p.id === id);
-    if (photo) {
-      try {
-        await deleteGeneratedPhotoBySlot(photo.slot);
-      } catch (error) {
-        console.error("Error deleting photo from IndexedDB:", error);
-      }
-    }
+  const handleRemovePhoto = (id: string) => {
     removePhoto(id);
   };
 
@@ -85,13 +62,8 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
     // For now, clicking empty slots does nothing - photos come from AI generation
   };
 
-  const handleSwapSlots = async (slotA: number, slotB: number) => {
+  const handleSwapSlots = (slotA: number, slotB: number) => {
     swapPhotoSlots(slotA, slotB);
-    try {
-      await swapGeneratedPhotoSlots(slotA, slotB);
-    } catch (error) {
-      console.error("Error syncing slot swap to IndexedDB:", error);
-    }
   };
 
   const emptySlotCount = [0, 1, 2, 3, 4, 5].filter(
@@ -99,6 +71,11 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
   ).length;
 
   const handleGenerateAIPhotos = async (images: File[], count: number) => {
+    if (!user) {
+      setGenerationError("Please sign in to generate photos");
+      return;
+    }
+
     setIsGenerating(true);
     setGenerationError(null);
 
@@ -108,6 +85,7 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
         formData.append("images", image);
       });
       formData.append("count", String(count));
+      formData.append("authId", user.id);
 
       const result = await generatePhotos(formData);
 
@@ -117,41 +95,8 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
         return;
       }
 
-      const allSlots = [0, 1, 2, 3, 4, 5];
-      const emptySlots = allSlots.filter(
-        (slot) => !photos.find((p) => p.slot === slot)
-      );
-      const filledSlots = allSlots.filter(
-        (slot) => photos.find((p) => p.slot === slot)
-      );
-
-      const slotsToUse = [...emptySlots, ...filledSlots].slice(0, count);
-
-      for (const slot of slotsToUse) {
-        const existingPhoto = photos.find((p) => p.slot === slot);
-        if (existingPhoto) {
-          await deleteGeneratedPhotoBySlot(slot);
-          removePhoto(existingPhoto.id);
-        }
-      }
-
-      const photosWithSlots = result.photos.map((photo, index) => ({
-        slot: slotsToUse[index],
-        url: photo.url,
-        mediaType: photo.mediaType,
-      }));
-
-      await saveGeneratedPhotos(photosWithSlots);
-
-      const photosToAdd = photosWithSlots.map((photo) => ({
-        slot: photo.slot,
-        photo: {
-          src: photo.url,
-          alt: `Generated photo ${photo.slot + 1}`,
-        },
-      }));
-
-      addPhotosToSlots(photosToAdd);
+      // Refresh from database to get the new photos and updated balance
+      await refreshFromDatabase();
     } catch (error) {
       console.error("Error generating photos:", error);
       setGenerationError(
@@ -243,7 +188,7 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
             </div>
           )
         ) : (
-          <>
+          <div>
             <PhotoGrid
               photos={photos}
               onSwapSlots={handleSwapSlots}
@@ -256,16 +201,17 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
             <div className="flex justify-end mt-2 px-1">
               <span className="text-[12px] text-gray-400">Drag to reorder</span>
             </div>
-          </>
+          </div>
         )}
       </div>
 
       {/* Upload Photos Button */}
-      <div className="">
+      <div className="py-4">
         <AIPhotoUpload
           onGenerate={handleGenerateAIPhotos}
           isGenerating={isGenerating}
           emptySlotCount={emptySlotCount}
+          balance={balance}
         />
         {generationError && (
           <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -275,7 +221,7 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
       </div>
 
       {/* Profile Vitals Section */}
-      <ProfileVitals className="py-10" />
+      <ProfileVitals className="py-8" />
 
       <div className="space-y-5">
 
@@ -307,6 +253,36 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
           </div>
         )}
       </div>
+
+      {/* Sign Out Button */}
+      {user && (
+        <div className="pt-8 pb-4">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button
+                type="button"
+                className="w-full py-3 text-[15px] font-medium text-red-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                Sign Out
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Sign out?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to sign out of your account?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction variant="destructive" onClick={() => signOut()}>
+                  Sign Out
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
     </div>
   );
 }

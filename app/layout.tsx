@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { DM_Sans, DM_Serif_Display } from "next/font/google";
 import { ProfileProvider } from "@/lib/profile-context";
+import { AuthProvider } from "@/lib/auth-context";
+import AuthModal from "@/components/AuthModal";
 import "./globals.css";
 
 const dmSans = DM_Sans({
@@ -29,7 +31,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${dmSans.variable} ${dmSerif.variable} antialiased`}>
-        <ProfileProvider>{children}</ProfileProvider>
+        <AuthProvider>
+          <ProfileProvider>{children}</ProfileProvider>
+          <AuthModal />
+        </AuthProvider>
       </body>
     </html>
   );

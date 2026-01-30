@@ -4,6 +4,8 @@ import { useState, useRef, useEffect } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/lib/is-mobile";
+import { useAuth } from "@/lib/auth-context";
+import { useProfile } from "@/lib/profile-context";
 import {
   Drawer,
   DrawerClose,
@@ -22,111 +24,78 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  saveUploadedImage,
-  getAllUploadedImages,
-  deleteUploadedImage,
-  createBlobUrl,
-} from "@/lib/indexeddb";
 import { Slider } from "./ui/slider";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
-
-interface UploadedImage {
-  id: string;
-  file: File;
-  preview: string;
-}
 
 interface AIPhotoUploadProps {
   onGenerate: (images: File[], count: number) => void;
   isGenerating?: boolean;
   emptySlotCount?: number;
+  balance?: number;
 }
 
 export default function AIPhotoUpload({
   onGenerate,
   isGenerating = false,
   emptySlotCount = 6,
+  balance = 0,
 }: AIPhotoUploadProps) {
   const isMobile = useIsMobile();
-  const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, openAuthModal, pendingAction, clearPendingAction } = useAuth();
+  const { uploadedImages, addUploadedImage, removeUploadedImage } = useProfile();
   const [isOpen, setIsOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
   const [photoCount, setPhotoCount] = useState(Math.min(3, 6));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const loadImages = async () => {
-      try {
-        const storedImages = await getAllUploadedImages();
-        const images: UploadedImage[] = storedImages.map((stored) => ({
-          id: stored.id,
-          file: new File([stored.blob], stored.name, { type: stored.type }),
-          preview: createBlobUrl(stored.blob),
-        }));
-        setUploadedImages(images);
-      } catch (error) {
-        console.error("Error loading uploaded images:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    loadImages();
-  }, []);
-
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
-    const newImages: UploadedImage[] = [];
-
     for (const file of Array.from(files)) {
       if (file.type.startsWith("image/")) {
-        try {
-          const stored = await saveUploadedImage(file);
-          const preview = createBlobUrl(stored.blob);
-          newImages.push({
-            id: stored.id,
-            file,
-            preview,
-          });
-        } catch (error) {
-          console.error("Error saving uploaded image:", error);
-        }
+        addUploadedImage(file);
       }
     }
-
-    setUploadedImages((prev) => [...newImages, ...prev]);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
 
-  const handleRemoveImage = async (id: string) => {
-    try {
-      await deleteUploadedImage(id);
-
-      setUploadedImages((prev) => {
-        const image = prev.find((img) => img.id === id);
-        if (image) {
-          URL.revokeObjectURL(image.preview);
-        }
-        return prev.filter((img) => img.id !== id);
-      });
-    } catch (error) {
-      console.error("Error deleting uploaded image:", error);
-    }
+  const handleRemoveImage = (id: string) => {
+    removeUploadedImage(id);
   };
 
   const handleGenerate = () => {
     if (uploadedImages.length === 0) return;
+
+    // If user is not signed in, open auth modal with pending action
+    if (!user) {
+      openAuthModal({
+        type: "generate",
+        data: {
+          images: uploadedImages.map((img) => img.file),
+          count: photoCount,
+        },
+      });
+      setIsOpen(false);
+      return;
+    }
+
     onGenerate(uploadedImages.map((img) => img.file), photoCount);
     setIsOpen(false);
   };
+
+  // Resume generation after successful sign-in
+  useEffect(() => {
+    if (user && pendingAction?.type === "generate") {
+      const { images, count } = pendingAction.data;
+      onGenerate(images, count);
+      clearPendingAction();
+    }
+  }, [user, pendingAction, onGenerate, clearPendingAction]);
 
   const handleOpenChange = (open: boolean) => {
     if (isGenerating && open) return;
@@ -138,6 +107,7 @@ export default function AIPhotoUpload({
   };
 
   const petalCost = photoCount * 10;
+  const insufficientBalance = user ? balance < petalCost : false;
   const photoCountLabel = `Generate ${photoCount} photo${photoCount !== 1 ? "s" : ""}`;
 
   const triggerButton = (
@@ -281,12 +251,14 @@ export default function AIPhotoUpload({
     </div>
   );
 
+  const isButtonDisabled = uploadedImages.length === 0 || isGenerating || insufficientBalance;
+
   const generateButton = (
     <button
       type="button"
       onClick={handleGenerate}
-      disabled={uploadedImages.length === 0 || isGenerating}
-      className={`w-full sm:flex-1 py-3 rounded-xl font-semibold text-[15px] transition-all flex items-center justify-center gap-2 ${uploadedImages.length === 0 || isGenerating
+      disabled={isButtonDisabled}
+      className={`w-full sm:flex-1 py-3 rounded-xl font-semibold text-[15px] transition-all flex items-center justify-center gap-2 ${isButtonDisabled
         ? "bg-gray-200 text-gray-400 cursor-not-allowed"
         : "bg-gradient-to-r from-[#67295F] to-[#8B3A7F] text-white hover:from-[#5a2352] hover:to-[#7a3370]"
         }`}
@@ -298,6 +270,11 @@ export default function AIPhotoUpload({
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
           Generating...
+        </>
+      ) : insufficientBalance ? (
+        <>
+          <span className="text-sm">🌸</span>
+          Not enough petals
         </>
       ) : (
         <>

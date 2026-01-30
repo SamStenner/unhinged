@@ -1,15 +1,20 @@
 "use client";
 
 import { useState } from "react";
+import { GiftIcon, UserIcon } from "lucide-react";
 import { useProfile } from "@/lib/profile-context";
+import { useAuth } from "@/lib/auth-context";
 import { useIsMobile } from "@/lib/is-mobile";
 import ProfileHeader from "./ProfileHeader";
 import SwipeableViews from "./SwipeableViews";
 import EditView from "./EditView";
 import ViewContent from "./ViewContent";
+import InviteDrawer from "./InviteDrawer";
+import SettingsDrawer from "./SettingsDrawer";
 
 export default function Profile() {
-  const { profile } = useProfile();
+  const { balance } = useProfile();
+  const { user, openAuthModal } = useAuth();
   const isMobile = useIsMobile();
   const [activeIndex, setActiveIndex] = useState(0); // 0 = Edit, 1 = View
   const [isDragging, setIsDragging] = useState(false);
@@ -29,19 +34,38 @@ export default function Profile() {
         {/* Desktop Header */}
         <div className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200">
           <div className="max-w-[900px] mx-auto flex items-center justify-between px-6 py-3">
-            <button
-              type="button"
-              className="text-[#67295F] font-medium text-base"
-            >
-              Cancel
-            </button>
+            {user ? (
+              <InviteDrawer>
+                <button
+                  type="button"
+                  className="font-medium text-base hover:opacity-70 transition-opacity"
+                >
+                  <GiftIcon className="size-5" />
+                </button>
+              </InviteDrawer>
+            ) : (
+              <div className="size-5" />
+            )}
             <h1 className="text-xl font-semibold text-primary">Unhinged</h1>
-            <button
-              type="button"
-              className="text-[#67295F] font-semibold text-base"
-            >
-              Done
-            </button>
+            {user ? (
+              <SettingsDrawer>
+                <button
+                  type="button"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-[#67295F]/10 to-[#67295F]/5 hover:from-[#67295F]/15 hover:to-[#67295F]/10 rounded-full transition-all"
+                >
+                  <span className="text-sm">🌸</span>
+                  <span className="text-sm font-semibold text-[#67295F]">{balance}</span>
+                </button>
+              </SettingsDrawer>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openAuthModal()}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <UserIcon className="size-5" />
+              </button>
+            )}
           </div>
         </div>
 

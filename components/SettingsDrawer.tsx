@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useIsMobile } from "@/lib/is-mobile";
+import { useProfile } from "@/lib/profile-context";
 import { PlusIcon, SparklesIcon, ZapIcon, CrownIcon, FlameIcon } from "lucide-react";
 import {
   Drawer,
@@ -53,10 +54,8 @@ const petalPackages = [
 ];
 
 function SettingsContent() {
+  const { balance } = useProfile();
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
-
-  // Placeholder petal balance
-  const petalBalance = 60;
 
   const handlePurchase = () => {
     if (!selectedPackage) return;
@@ -67,7 +66,7 @@ function SettingsContent() {
   return (
     <div className="flex flex-col px-6 pb-8 pt-2">
       {/* Current Balance */}
-      <div className="text-center mb-6">
+      <div className="text-center my-6">
         <p className="text-xs uppercase tracking-wider text-gray-400 font-medium mb-2">
           Your Balance
         </p>
@@ -75,7 +74,7 @@ function SettingsContent() {
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#F5B5D0] to-[#E890B0] flex items-center justify-center shadow-md">
             <span className="text-lg">🌸</span>
           </div>
-          <span className="text-4xl font-bold text-gray-900">{petalBalance}</span>
+          <span className="text-4xl font-bold text-gray-900">{balance}</span>
           <span className="text-lg text-gray-500 font-medium">petals</span>
         </div>
       </div>

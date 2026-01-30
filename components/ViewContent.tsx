@@ -1,67 +1,72 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useProfile } from "@/lib/profile-context";
+import { useAuth } from "@/lib/auth-context";
 import ProfileInfo from "./ProfileInfo";
 import ProfileImage from "./ProfileImage";
 import PromptCard from "./PromptCard";
 import { generatePhotos } from "@/app/actions/generate-photos";
-import {
-  getAllUploadedImages,
-  saveGeneratedPhotos,
-  deleteGeneratedPhotoBySlot,
-} from "@/lib/indexeddb";
 
 export default function ViewContent() {
-  const { profile, photos, prompts, addPhotoToSlot, removePhoto } =
+  const { user } = useAuth();
+  const { profile, photos, prompts, uploadedImages, refreshFromDatabase } =
     useProfile();
   const [regeneratingSlot, setRegeneratingSlot] = useState<number | null>(null);
   const [activeOverlaySlot, setActiveOverlaySlot] = useState<number | null>(
     null
   );
+  const [showPrompts, setShowPrompts] = useState(false);
+
+  // Read showPrompts setting from localStorage
+  useEffect(() => {
+    setShowPrompts(localStorage.getItem("showPrompts") === "true");
+  }, []);
 
   // Get photos by slot, filtering out empty slots
   const getPhotoBySlot = (slot: number) => photos.find((p) => p.slot === slot);
   const sortedPrompts = [...prompts].sort((a, b) => a.order - b.order);
+
+  // Check if profile has any content
+  const hasPhotos = photos.length > 0;
+  const hasVitals =
+    profile.age !== undefined ||
+    !!profile.gender ||
+    !!profile.height ||
+    !!profile.location;
+  const hasPrompts = showPrompts && prompts.length > 0;
+  const hasContent = hasPhotos || hasVitals || hasPrompts;
 
   const handleOverlayChange = (slot: number) => (active: boolean) => {
     setActiveOverlaySlot(active ? slot : null);
   };
 
   const handleRegenerate = async (slot: number) => {
+    if (!user) {
+      console.error("User must be authenticated to regenerate photos");
+      return;
+    }
+
+    if (uploadedImages.length === 0) {
+      console.error("No uploaded images found for regeneration");
+      return;
+    }
+
     setActiveOverlaySlot(null);
     setRegeneratingSlot(slot);
 
     try {
-      // Get uploaded images from IndexedDB
-      const storedImages = await getAllUploadedImages();
-
-      if (storedImages.length === 0) {
-        console.error("No uploaded images found for regeneration");
-        setRegeneratingSlot(null);
-        return;
-      }
-
-      // Convert stored images to Files
-      const imageFiles = storedImages.map(
-        (stored) => new File([stored.blob], stored.name, { type: stored.type })
-      );
-
-      // Delete the existing photo from IndexedDB
-      await deleteGeneratedPhotoBySlot(slot);
-
-      // Find the photo to remove from context
-      const photoToRemove = photos.find((p) => p.slot === slot);
-      if (photoToRemove) {
-        removePhoto(photoToRemove.id);
-      }
+      // Get files from context
+      const imageFiles = uploadedImages.map((img) => img.file);
 
       // Create FormData with images and just this slot
       const formData = new FormData();
       imageFiles.forEach((image) => {
         formData.append("images", image);
       });
-      formData.append("slots", JSON.stringify([slot]));
+      formData.append("count", "1");
+      formData.append("authId", user.id);
+      formData.append("targetSlot", String(slot));
 
       // Call the server action
       const result = await generatePhotos(formData);
@@ -72,28 +77,45 @@ export default function ViewContent() {
         return;
       }
 
-      const generatedPhoto = result.photos[0];
-
-      // Save to IndexedDB
-      await saveGeneratedPhotos([
-        {
-          slot,
-          url: generatedPhoto.url,
-          mediaType: generatedPhoto.mediaType,
-        },
-      ]);
-
-      // Add to context
-      addPhotoToSlot(slot, {
-        src: generatedPhoto.url,
-        alt: `Generated photo ${slot + 1}`,
-      });
+      // Refresh from database to get the updated photo
+      await refreshFromDatabase();
     } catch (error) {
       console.error("Error regenerating photo:", error);
     } finally {
       setRegeneratingSlot(null);
     }
   };
+
+  // Show empty state if no content
+  if (!hasContent) {
+    return (
+      <div className="hide-scrollbar pb-8 px-4 pt-8">
+        <div className="bg-white border border-border rounded-xl py-12 px-6 flex flex-col items-center justify-center text-center">
+          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+            <svg
+              width="32"
+              height="32"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#9ca3af"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </div>
+          <p className="text-[15px] font-medium text-gray-700 mb-1">
+            No profile yet
+          </p>
+          <p className="text-[13px] text-gray-400">
+            Switch to Edit to add photos, vitals, and prompts
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="hide-scrollbar pb-8">
@@ -131,7 +153,7 @@ export default function ViewContent() {
       )}
 
       {/* Prompt 1 */}
-      {sortedPrompts[0] && (
+      {showPrompts && sortedPrompts[0] && (
         <PromptCard
           prompt={sortedPrompts[0].prompt}
           answer={sortedPrompts[0].answer}
@@ -169,7 +191,7 @@ export default function ViewContent() {
       )}
 
       {/* Prompt 2 */}
-      {sortedPrompts[1] && (
+      {showPrompts && sortedPrompts[1] && (
         <PromptCard
           prompt={sortedPrompts[1].prompt}
           answer={sortedPrompts[1].answer}
@@ -192,7 +214,7 @@ export default function ViewContent() {
       )}
 
       {/* Prompt 3 */}
-      {sortedPrompts[2] && (
+      {showPrompts && sortedPrompts[2] && (
         <PromptCard
           prompt={sortedPrompts[2].prompt}
           answer={sortedPrompts[2].answer}
