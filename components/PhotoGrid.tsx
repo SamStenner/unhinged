@@ -19,7 +19,6 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect, useRef } from "react";
 import type { Photo } from "@/lib/types";
-import FullscreenGallery from "./FullscreenGallery";
 
 interface PhotoGridProps {
   photos: Photo[];
@@ -41,11 +40,9 @@ interface GridItem {
 function SortablePhotoTile({
   item,
   onRemove,
-  onPhotoClick,
 }: {
   item: GridItem;
   onRemove: () => void;
-  onPhotoClick: () => void;
 }) {
   const {
     attributes,
@@ -56,8 +53,6 @@ function SortablePhotoTile({
     isDragging,
   } = useSortable({ id: item.id });
 
-  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
-
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -67,25 +62,6 @@ function SortablePhotoTile({
 
   if (!item.photo) return null;
 
-  // Custom pointer handlers to distinguish between click and drag
-  const handlePointerDown = (e: React.PointerEvent) => {
-    pointerStartRef.current = { x: e.clientX, y: e.clientY };
-    // Call the original listener
-    listeners?.onPointerDown?.(e as any);
-  };
-
-  const handlePointerUp = (e: React.PointerEvent) => {
-    if (pointerStartRef.current) {
-      const deltaX = Math.abs(e.clientX - pointerStartRef.current.x);
-      const deltaY = Math.abs(e.clientY - pointerStartRef.current.y);
-      // If the pointer didn't move much, treat it as a click
-      if (deltaX < 5 && deltaY < 5) {
-        onPhotoClick();
-      }
-    }
-    pointerStartRef.current = null;
-  };
-
   return (
     <div
       ref={setNodeRef}
@@ -94,8 +70,6 @@ function SortablePhotoTile({
         }`}
       {...attributes}
       {...listeners}
-      onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
     >
       <Image
         src={item.photo.src}
@@ -253,11 +227,7 @@ export default function PhotoGrid({
   };
 
   const [items, setItems] = useState<GridItem[]>(() => buildGridItems(photos));
-  const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Get only photos that have images (for fullscreen gallery navigation)
-  const photosWithImages = photos.filter((p) => p.src);
 
   // Sync items when photos change (from external updates like remove)
   useEffect(() => {
@@ -335,15 +305,11 @@ export default function PhotoGrid({
           <div className="grid grid-cols-3 gap-2">
             {items.map((item) => {
               if (item.photo) {
-                const photoIndex = photosWithImages.findIndex(
-                  (p) => p.id === item.photo!.id
-                );
                 return (
                   <SortablePhotoTile
                     key={item.id}
                     item={item}
                     onRemove={() => onRemovePhoto(item.photo!.id)}
-                    onPhotoClick={() => setFullscreenIndex(photoIndex)}
                   />
                 );
               }
@@ -359,15 +325,6 @@ export default function PhotoGrid({
           </div>
         </SortableContext>
       </DndContext>
-
-      {/* Fullscreen Gallery */}
-      {fullscreenIndex !== null && photosWithImages.length > 0 && (
-        <FullscreenGallery
-          photos={photosWithImages}
-          initialIndex={fullscreenIndex}
-          onClose={() => setFullscreenIndex(null)}
-        />
-      )}
     </div>
   );
 }

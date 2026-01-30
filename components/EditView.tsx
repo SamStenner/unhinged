@@ -5,6 +5,9 @@ import { useProfile } from "@/lib/profile-context";
 import { availablePrompts } from "@/lib/mock-data";
 import PhotoGrid from "./PhotoGrid";
 import AIPhotoUpload from "./AIPhotoUpload";
+import WrittenPromptCard from "./WrittenPromptCard";
+import AddPromptCard from "./AddPromptCard";
+import ProfileVitals from "./ProfileVitals";
 import { generatePhotos } from "@/app/actions/generate-photos";
 import {
   getAllGeneratedPhotos,
@@ -13,126 +16,6 @@ import {
   swapGeneratedPhotoSlots,
 } from "@/lib/indexeddb";
 import { Switch } from "./ui/switch";
-
-function WrittenPromptCard({
-  prompt,
-  answer,
-  onRemove,
-  onAnswerChange,
-}: {
-  prompt: string;
-  answer: string;
-  onRemove: () => void;
-  onAnswerChange: (newAnswer: string) => void;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState(answer);
-
-  const handleSave = () => {
-    onAnswerChange(editValue);
-    setIsEditing(false);
-  };
-
-  return (
-    <div className="bg-white rounded-xl p-4 relative">
-      <button
-        type="button"
-        onClick={onRemove}
-        className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center"
-        aria-label="Remove prompt"
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#999"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
-      <p className="text-[15px] font-semibold text-black pr-6 mb-1">{prompt}</p>
-      {isEditing ? (
-        <div className="space-y-2">
-          <textarea
-            value={editValue}
-            onChange={(e) => setEditValue(e.target.value)}
-            className="w-full text-[14px] text-gray-700 leading-snug border border-gray-300 rounded-lg p-2 resize-none focus:outline-none focus:ring-2 focus:ring-[#67295F] focus:border-transparent"
-            rows={3}
-            autoFocus
-          />
-          <div className="flex gap-2 justify-end">
-            <button
-              type="button"
-              onClick={() => {
-                setEditValue(answer);
-                setIsEditing(false);
-              }}
-              className="px-3 py-1 text-sm text-gray-500 hover:text-gray-700"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              className="px-3 py-1 text-sm bg-[#67295F] text-white rounded-lg hover:bg-[#5a2352]"
-            >
-              Save
-            </button>
-          </div>
-        </div>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setIsEditing(true)}
-          className="text-left w-full"
-        >
-          <p className="text-[14px] text-gray-500 leading-snug hover:text-gray-700 transition-colors">
-            {answer}
-          </p>
-        </button>
-      )}
-    </div>
-  );
-}
-
-function AddPromptCard({ onClick }: { onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="w-full rounded-xl border-2 border-dashed border-[#67295F] bg-white p-4 flex items-center justify-between hover:bg-purple-50 transition-colors"
-    >
-      <div>
-        <p className="text-[15px] font-semibold text-black text-left">
-          Select a prompt
-        </p>
-        <p className="text-[14px] text-gray-400 italic text-left">
-          And write your answer
-        </p>
-      </div>
-      <div className="w-7 h-7 rounded-full bg-[#67295F] flex items-center justify-center shrink-0">
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="white"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
-      </div>
-    </button>
-  );
-}
 
 interface EditViewProps {
   onDragStart?: () => void;
@@ -187,30 +70,23 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
   }, [addPhotosToSlots]);
 
   const handleRemovePhoto = async (id: string) => {
-    // Find the photo to get its slot
     const photo = photos.find((p) => p.id === id);
     if (photo) {
       try {
-        // Delete from IndexedDB
         await deleteGeneratedPhotoBySlot(photo.slot);
       } catch (error) {
         console.error("Error deleting photo from IndexedDB:", error);
       }
     }
-    // Remove from context
     removePhoto(id);
   };
 
   const handleAddPhoto = (slot: number) => {
     // For now, clicking empty slots does nothing - photos come from AI generation
-    // Could add manual upload functionality here later
   };
 
   const handleSwapSlots = async (slotA: number, slotB: number) => {
-    // Update context
     swapPhotoSlots(slotA, slotB);
-
-    // Sync to IndexedDB
     try {
       await swapGeneratedPhotoSlots(slotA, slotB);
     } catch (error) {
@@ -218,29 +94,21 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
     }
   };
 
-  const handleGenerateAIPhotos = async (images: File[]) => {
+  const emptySlotCount = [0, 1, 2, 3, 4, 5].filter(
+    (slot) => !photos.find((p) => p.slot === slot)
+  ).length;
+
+  const handleGenerateAIPhotos = async (images: File[], count: number) => {
     setIsGenerating(true);
     setGenerationError(null);
 
-    // Find all empty slots - we'll generate an image for each one
-    const emptySlots = [0, 1, 2, 3, 4, 5].filter(
-      (slot) => !photos.find((p) => p.slot === slot)
-    );
-
-    if (emptySlots.length === 0) {
-      setIsGenerating(false);
-      return;
-    }
-
     try {
-      // Create FormData with images and slots
       const formData = new FormData();
       images.forEach((image) => {
         formData.append("images", image);
       });
-      formData.append("slots", JSON.stringify(emptySlots));
+      formData.append("count", String(count));
 
-      // Call the server action
       const result = await generatePhotos(formData);
 
       if (!result.success || !result.photos) {
@@ -249,17 +117,33 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
         return;
       }
 
-      // Save to IndexedDB
-      await saveGeneratedPhotos(
-        result.photos.map((photo) => ({
-          slot: photo.slot,
-          url: photo.url,
-          mediaType: photo.mediaType,
-        }))
+      const allSlots = [0, 1, 2, 3, 4, 5];
+      const emptySlots = allSlots.filter(
+        (slot) => !photos.find((p) => p.slot === slot)
+      );
+      const filledSlots = allSlots.filter(
+        (slot) => photos.find((p) => p.slot === slot)
       );
 
-      // Add photos to the profile context
-      const photosToAdd = result.photos.map((photo) => ({
+      const slotsToUse = [...emptySlots, ...filledSlots].slice(0, count);
+
+      for (const slot of slotsToUse) {
+        const existingPhoto = photos.find((p) => p.slot === slot);
+        if (existingPhoto) {
+          await deleteGeneratedPhotoBySlot(slot);
+          removePhoto(existingPhoto.id);
+        }
+      }
+
+      const photosWithSlots = result.photos.map((photo, index) => ({
+        slot: slotsToUse[index],
+        url: photo.url,
+        mediaType: photo.mediaType,
+      }));
+
+      await saveGeneratedPhotos(photosWithSlots);
+
+      const photosToAdd = photosWithSlots.map((photo) => ({
         slot: photo.slot,
         photo: {
           src: photo.url,
@@ -280,7 +164,6 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
 
   const handleAddPrompt = () => {
     if (prompts.length >= 3) return;
-    // Get prompts that aren't already in use
     const usedPrompts = prompts.map((p) => p.prompt);
     const unusedPrompts = availablePrompts.filter(
       (p) => !usedPrompts.includes(p)
@@ -293,16 +176,15 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
   };
 
   return (
-    <div className="hide-scrollbar bg-white ">
+    <div className="hide-scrollbar bg-white p-4">
       {/* My Photos Section */}
-      <div className="px-4 pt-2 pb-2">
+      <div className="">
         <h2 className="text-[15px] font-medium text-gray-600 mb-3">
           My Photos
         </h2>
         {photos.length === 0 ? (
           isGenerating ? (
             <div className="bg-white rounded-xl py-12 px-6 flex flex-col items-center justify-center text-center relative overflow-hidden">
-              {/* Shimmer overlay */}
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-[#67295F]/5 to-transparent animate-shimmer" />
               <div className="relative z-10 flex flex-col items-center">
                 <div className="w-16 h-16 rounded-full bg-[#67295F]/10 flex items-center justify-center mb-4">
@@ -379,10 +261,11 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
       </div>
 
       {/* Upload Photos Button */}
-      <div className="px-4 pt-4 pb-2">
+      <div className="">
         <AIPhotoUpload
           onGenerate={handleGenerateAIPhotos}
           isGenerating={isGenerating}
+          emptySlotCount={emptySlotCount}
         />
         {generationError && (
           <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -391,35 +274,39 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
         )}
       </div>
 
-      <div className="p-4 flex items-center justify-between pt-10">
-        <h2 className="text-[15px] font-medium">Show Prompts</h2>
-        <Switch
-          checked={showPrompts}
-          onCheckedChange={setShowPrompts}
-          className="data-[state=checked]:bg-[#67295F]"
-        />
-      </div>
+      {/* Profile Vitals Section */}
+      <ProfileVitals className="py-10" />
 
-      {/* Written Prompts Section */}
-      {showPrompts && <div className="px-4 pt-4">
-        <h2 className="text-[15px] font-medium text-gray-600 mb-3">
-          Written Prompts ({prompts.length})
-        </h2>
-        <div className="space-y-2">
-          {prompts.map((prompt) => (
-            <WrittenPromptCard
-              key={prompt.id}
-              prompt={prompt.prompt}
-              answer={prompt.answer}
-              onRemove={() => removePrompt(prompt.id)}
-              onAnswerChange={(newAnswer) =>
-                updatePrompt(prompt.id, { answer: newAnswer })
-              }
-            />
-          ))}
-          {prompts.length < 3 && <AddPromptCard onClick={handleAddPrompt} />}
+      <div className="space-y-5">
+
+        {/* Show Prompts Toggle */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-[15px] font-medium">Show Prompts</h2>
+          <Switch
+            checked={showPrompts}
+            onCheckedChange={setShowPrompts}
+            className="data-[state=checked]:bg-[#67295F]"
+          />
         </div>
-      </div>}
+
+        {/* Written Prompts Section */}
+        {showPrompts && (
+          <div className="space-y-5">
+            {prompts.map((prompt) => (
+              <WrittenPromptCard
+                key={prompt.id}
+                prompt={prompt.prompt}
+                answer={prompt.answer}
+                onRemove={() => removePrompt(prompt.id)}
+                onAnswerChange={(newAnswer) =>
+                  updatePrompt(prompt.id, { answer: newAnswer })
+                }
+              />
+            ))}
+            {prompts.length < 3 && <AddPromptCard onClick={handleAddPrompt} />}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

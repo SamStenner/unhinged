@@ -104,9 +104,11 @@ function InviteContent() {
               {inviteCode}
             </span>
           </div>
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={handleCopy}
-            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+            className="h-9 w-9 hover:bg-gray-200"
             aria-label="Copy invite code"
           >
             {copied ? (
@@ -114,7 +116,7 @@ function InviteContent() {
             ) : (
               <CopyIcon className="w-5 h-5 text-gray-500" />
             )}
-          </button>
+          </Button>
         </div>
       </div>
 

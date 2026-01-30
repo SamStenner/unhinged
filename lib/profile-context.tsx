@@ -11,25 +11,12 @@ import {
 import type { Profile, Photo, Prompt, ProfileData } from "./types";
 import { defaultProfileData } from "./mock-data";
 
-const ONBOARDING_COMPLETE_KEY = "unhinged_onboarding_complete";
 const USER_PROFILE_KEY = "unhinged_user_profile";
-
-interface OnboardingData {
-  gender: string;
-  birthday: Date | null;
-  location: string;
-  height: string;
-}
 
 interface ProfileContextType {
   profile: Profile;
   photos: Photo[];
   prompts: Prompt[];
-
-  // Onboarding state
-  showOnboarding: boolean;
-  completeOnboarding: (data: OnboardingData) => void;
-  skipOnboarding: () => void;
 
   // Profile actions
   updateProfile: (updates: Partial<Profile>) => void;
@@ -49,24 +36,12 @@ interface ProfileContextType {
 
 const ProfileContext = createContext<ProfileContextType | null>(null);
 
-function calculateAge(birthday: Date): number {
-  const today = new Date();
-  let age = today.getFullYear() - birthday.getFullYear();
-  const monthDiff = today.getMonth() - birthday.getMonth();
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthday.getDate())) {
-    age--;
-  }
-  return age;
-}
-
 export function ProfileProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<ProfileData>(defaultProfileData);
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const [isHydrated, setIsHydrated] = useState(false);
 
-  // Check localStorage on mount for onboarding state and saved profile
+  // Check localStorage on mount for saved profile
   useEffect(() => {
-    const onboardingComplete = localStorage.getItem(ONBOARDING_COMPLETE_KEY);
     const savedProfile = localStorage.getItem(USER_PROFILE_KEY);
 
     if (savedProfile) {
@@ -81,43 +56,20 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    setShowOnboarding(onboardingComplete !== "true");
     setIsHydrated(true);
-  }, []);
-
-  const completeOnboarding = useCallback((onboardingData: OnboardingData) => {
-    const age = onboardingData.birthday ? calculateAge(onboardingData.birthday) : 0;
-
-    const profileUpdates: Partial<Profile> = {
-      gender: onboardingData.gender || "",
-      age,
-      location: onboardingData.location || "",
-      height: onboardingData.height || "",
-    };
-
-    setData((prev) => ({
-      ...prev,
-      profile: { ...prev.profile, ...profileUpdates },
-    }));
-
-    // Persist to localStorage
-    localStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
-    localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(profileUpdates));
-
-    setShowOnboarding(false);
-  }, []);
-
-  const skipOnboarding = useCallback(() => {
-    localStorage.setItem(ONBOARDING_COMPLETE_KEY, "true");
-    setShowOnboarding(false);
   }, []);
 
   // Profile actions
   const updateProfile = useCallback((updates: Partial<Profile>) => {
-    setData((prev) => ({
-      ...prev,
-      profile: { ...prev.profile, ...updates },
-    }));
+    setData((prev) => {
+      const newProfile = { ...prev.profile, ...updates };
+      // Persist to localStorage
+      localStorage.setItem(USER_PROFILE_KEY, JSON.stringify(newProfile));
+      return {
+        ...prev,
+        profile: newProfile,
+      };
+    });
   }, []);
 
   // Photo actions
@@ -243,9 +195,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         profile: data.profile,
         photos: data.photos,
         prompts: data.prompts.sort((a, b) => a.order - b.order),
-        showOnboarding,
-        completeOnboarding,
-        skipOnboarding,
         updateProfile,
         addPhotoToSlot,
         addPhotosToSlots,

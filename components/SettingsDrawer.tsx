@@ -20,6 +20,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 
 const petalPackages = [
   {
@@ -54,7 +56,7 @@ function SettingsContent() {
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
 
   // Placeholder petal balance
-  const petalBalance = 42;
+  const petalBalance = 60;
 
   const handlePurchase = () => {
     if (!selectedPackage) return;
@@ -88,18 +90,21 @@ function SettingsContent() {
       </div>
 
       {/* Package Options */}
-      <div className="space-y-3 mb-6">
+      <RadioGroup
+        value={selectedPackage || ""}
+        onValueChange={setSelectedPackage}
+        className="space-y-3 mb-6"
+      >
         {petalPackages.map((pkg) => {
           const Icon = pkg.icon;
           const isSelected = selectedPackage === pkg.id;
 
           return (
-            <button
+            <Label
               key={pkg.id}
-              onClick={() => setSelectedPackage(pkg.id)}
-              className={`w-full p-4 rounded-2xl border-2 transition-all relative ${isSelected
-                  ? "border-[#67295F] bg-[#67295F]/5"
-                  : "border-gray-200 hover:border-gray-300 bg-white"
+              className={`w-full p-4 rounded-2xl border-2 transition-all relative cursor-pointer flex ${isSelected
+                ? "border-[#67295F] bg-[#67295F]/5"
+                : "border-gray-200 hover:border-gray-300 bg-white"
                 }`}
             >
               {pkg.popular && (
@@ -108,7 +113,7 @@ function SettingsContent() {
                 </div>
               )}
 
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4 w-full">
                 {/* Icon */}
                 <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${pkg.color} flex items-center justify-center shadow-md`}>
                   <Icon className="w-6 h-6 text-white" />
@@ -118,7 +123,7 @@ function SettingsContent() {
                 <div className="flex-1 text-left">
                   <div className="flex items-baseline gap-2">
                     <span className="text-xl font-bold text-gray-900">{pkg.petals}</span>
-                    <span className="text-sm text-gray-500">petals</span>
+                    <span className="text-sm text-gray-500 font-normal">petals</span>
                   </div>
                   {pkg.savings && (
                     <span className="text-xs font-medium text-green-600">{pkg.savings}</span>
@@ -130,20 +135,16 @@ function SettingsContent() {
                   <span className="text-lg font-bold text-gray-900">{pkg.price}</span>
                 </div>
 
-                {/* Selection indicator */}
-                <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${isSelected
-                    ? "border-[#67295F] bg-[#67295F]"
-                    : "border-gray-300"
-                  }`}>
-                  {isSelected && (
-                    <div className="w-2 h-2 rounded-full bg-white" />
-                  )}
-                </div>
+                {/* Radio indicator */}
+                <RadioGroupItem
+                  value={pkg.id}
+                  className="size-6 border-2 border-[#67295F] text-[#67295F] data-[state=checked]:border-[#67295F]"
+                />
               </div>
-            </button>
+            </Label>
           );
         })}
-      </div>
+      </RadioGroup>
 
       {/* Purchase Button */}
       <Button
@@ -162,8 +163,9 @@ function SettingsContent() {
           What are petals?
         </h4>
         <p className="text-sm text-gray-500 leading-relaxed">
-          Petals are the currency of Unhinged. Use them to boost your profile,
-          send roses to standout profiles, and unlock premium features.
+          Each photo costs{" "}
+          <span className="font-semibold text-[#67295F]">10 petals</span> to generate.
+          Stock up to keep creating stunning profile photos!
         </p>
       </div>
 
