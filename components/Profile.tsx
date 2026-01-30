@@ -23,7 +23,7 @@ export default function Profile() {
   const giftEnabled = false
 
   // Show skeleton while checking auth state or loading profile data
-  if (isAuthLoading || isProfileLoading) {
+  if (isAuthLoading) {
     return <ProfileSkeleton />;
   }
 

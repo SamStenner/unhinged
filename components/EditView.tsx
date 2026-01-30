@@ -85,7 +85,6 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
         formData.append("images", image);
       });
       formData.append("count", String(count));
-      formData.append("authId", user.id);
 
       const result = await generatePhotos(formData);
 

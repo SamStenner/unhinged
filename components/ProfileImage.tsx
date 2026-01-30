@@ -125,7 +125,7 @@ export default function ProfileImage({
   return (
     <div className="mx-4 my-3">
       <div
-        className={`relative w-full aspect-4/5 rounded-2xl overflow-hidden bg-gray-200 ${isMobile ? "cursor-pointer" : ""}`}
+        className={`relative w-full aspect-square rounded-2xl overflow-hidden bg-gray-200 ${isMobile ? "cursor-pointer" : ""}`}
         onClick={handleImageClick}
         onMouseEnter={() => !isMobile && setIsHovered(true)}
         onMouseLeave={() => !isMobile && setIsHovered(false)}

@@ -65,7 +65,6 @@ export default function ViewContent() {
         formData.append("images", image);
       });
       formData.append("count", "1");
-      formData.append("authId", user.id);
       formData.append("targetSlot", String(slot));
 
       // Call the server action
