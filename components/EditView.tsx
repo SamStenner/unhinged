@@ -223,17 +223,17 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
       {/* Profile Vitals Section */}
       <ProfileVitals className="py-8" />
 
-      <div className="space-y-5">
+      {false && <div className="space-y-5">
 
         {/* Show Prompts Toggle */}
-        <div className="flex items-center justify-between">
+        {<div className="flex items-center justify-between">
           <h2 className="text-[15px] font-medium">Show Prompts</h2>
           <Switch
             checked={showPrompts}
             onCheckedChange={setShowPrompts}
             className="data-[state=checked]:bg-[#67295F]"
           />
-        </div>
+        </div>}
 
         {/* Written Prompts Section */}
         {showPrompts && (
@@ -252,7 +252,7 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
             {prompts.length < 3 && <AddPromptCard onClick={handleAddPrompt} />}
           </div>
         )}
-      </div>
+      </div>}
 
       {/* Sign Out Button */}
       {user && (
