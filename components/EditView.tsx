@@ -28,6 +28,56 @@ interface EditViewProps {
   onDragEnd?: () => void;
 }
 
+// Compress image on client side to avoid payload size limits
+async function compressImage(file: File, maxSize = 1024, quality = 0.8): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      // Calculate new dimensions maintaining aspect ratio
+      let { width, height } = img;
+      if (width > height) {
+        if (width > maxSize) {
+          height = (height * maxSize) / width;
+          width = maxSize;
+        }
+      } else {
+        if (height > maxSize) {
+          width = (width * maxSize) / height;
+          height = maxSize;
+        }
+      }
+
+      // Draw to canvas and export as compressed JPEG
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Failed to get canvas context"));
+        return;
+      }
+      ctx.drawImage(img, 0, 0, width, height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Failed to compress image"));
+            return;
+          }
+          const compressedFile = new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), {
+            type: "image/jpeg",
+          });
+          resolve(compressedFile);
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
   const { user, signOut } = useAuth();
   const {
@@ -80,8 +130,13 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
     setGenerationError(null);
 
     try {
+      // Compress images on client side to avoid payload size limits
+      const compressedImages = await Promise.all(
+        images.map((image) => compressImage(image, 1024, 0.85))
+      );
+
       const formData = new FormData();
-      images.forEach((image) => {
+      compressedImages.forEach((image) => {
         formData.append("images", image);
       });
       formData.append("count", String(count));
