@@ -17,7 +17,7 @@ export const users = pgTable("users", {
   gender: text("gender"),
   height: text("height"),
   location: text("location"),
-  balance: integer("balance").default(0).notNull(),
+  balance: integer("balance").default(100).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

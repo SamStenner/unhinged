@@ -1,0 +1,7 @@
+tunnel: unhinged
+credentials-file: ./credentials.json
+
+ingress:
+  - hostname: tunnel.hinged.fun
+    service: http://localhost:3000
+  - service: http_status:404

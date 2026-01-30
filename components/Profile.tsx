@@ -19,6 +19,8 @@ export default function Profile() {
   const activeTab = activeIndex === 0 ? "edit" : "view";
   const setActiveTab = (tab: "edit" | "view") => setActiveIndex(tab === "edit" ? 0 : 1);
 
+  const giftEnabled = false
+
   // Desktop: Side-by-side layout
   if (!isMobile) {
     return (
@@ -26,7 +28,7 @@ export default function Profile() {
         {/* Desktop Header */}
         <header className="sticky top-0 z-50 bg-white border-b border-gray-200">
           <div className="max-w-[900px] mx-auto relative flex items-center justify-between px-6 py-3">
-            {user ? (
+            {giftEnabled && user ? (
               <InviteDrawer>
                 <button type="button" className="hover:opacity-70 transition-opacity">
                   <GiftIcon className="size-5" />
@@ -81,7 +83,7 @@ export default function Profile() {
       <header className="sticky top-0 z-50 bg-white">
         {/* Top row */}
         <div className="relative flex items-center justify-between px-4 pt-3 pb-2">
-          {user ? (
+          {giftEnabled && user ? (
             <InviteDrawer>
               <button type="button" className="hover:opacity-70 transition-opacity">
                 <GiftIcon className="size-5" />
@@ -100,7 +102,7 @@ export default function Profile() {
             </SettingsDrawer>
           ) : (
             <button type="button" onClick={() => openAuthModal()} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-              <UserIcon className="size-5 text-[#67295F]" />
+              <UserIcon className="size-5" />
             </button>
           )}
         </div>

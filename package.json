@@ -11,7 +11,11 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:push": "drizzle-kit push",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "cf:tunnel": "cloudflared tunnel --config config.yml run unhinged",
+    "cf:login": "rm -f ~/.cloudflared/cert.pem && cloudflared tunnel login",
+    "cf:create": "cloudflared tunnel create unhinged 2>&1 | tee /dev/stderr | grep -o '[a-f0-9-]\\{36\\}' | head -1 | xargs -I {} cp ~/.cloudflared/{}.json ./credentials.json && cloudflared tunnel route dns unhinged tunnel.hinged.fun",
+    "cf:credentials": "cloudflared tunnel list | grep unhinged | awk '{print $1}' | xargs -I {} cp ~/.cloudflared/{}.json ./credentials.json && echo 'Credentials copied to credentials.json'"
   },
   "dependencies": {
     "@ai-sdk/google": "^3.0.16",
@@ -39,6 +43,7 @@
     "postgres": "^3.4.8",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "stripe": "^20.3.0",
     "swiper": "^12.1.0",
     "tailwind-merge": "^3.4.0",
     "vaul": "^1.1.2"

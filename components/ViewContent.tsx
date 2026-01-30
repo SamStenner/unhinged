@@ -110,7 +110,7 @@ export default function ViewContent() {
             No profile yet
           </p>
           <p className="text-[13px] text-gray-400">
-            Switch to Edit to add photos, vitals, and prompts
+            Add some photos and generate your profile pictures
           </p>
         </div>
       </div>

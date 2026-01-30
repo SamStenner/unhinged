@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { useIsMobile } from "@/lib/is-mobile";
 import { useProfile } from "@/lib/profile-context";
-import { PlusIcon, SparklesIcon, ZapIcon, CrownIcon, FlameIcon } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { createCheckoutSession } from "@/app/actions/stripe";
+import type { PackageId } from "@/lib/stripe";
+import { PlusIcon, SparklesIcon, ZapIcon, CrownIcon, FlameIcon, LoaderIcon } from "lucide-react";
 import {
   Drawer,
   DrawerContent,
@@ -55,12 +58,41 @@ const petalPackages = [
 
 function SettingsContent() {
   const { balance } = useProfile();
+  const { user, openAuthModal } = useAuth();
   const [selectedPackage, setSelectedPackage] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handlePurchase = () => {
+  const handlePurchase = async () => {
     if (!selectedPackage) return;
-    // Placeholder - would integrate with payment provider
-    alert(`Purchase ${selectedPackage} package - coming soon!`);
+
+    // Check if user is authenticated
+    if (!user) {
+      openAuthModal();
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const result = await createCheckoutSession(selectedPackage as PackageId);
+
+      if (result.error) {
+        setError(result.error);
+        return;
+      }
+
+      if (result.url) {
+        // Redirect to Stripe Checkout
+        window.location.href = result.url;
+      }
+    } catch (err) {
+      console.error("Error creating checkout session:", err);
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -145,14 +177,29 @@ function SettingsContent() {
         })}
       </RadioGroup>
 
+      {/* Error Message */}
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl">
+          <p className="text-sm text-red-600">{error}</p>
+        </div>
+      )}
+
       {/* Purchase Button */}
       <Button
         onClick={handlePurchase}
-        disabled={!selectedPackage}
+        disabled={!selectedPackage || isLoading}
         className="w-full h-12 bg-[#67295F] hover:bg-[#5a2352] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold text-[15px] rounded-full shadow-lg shadow-[#67295F]/20 transition-all hover:shadow-xl hover:shadow-[#67295F]/30 disabled:shadow-none"
       >
-        <PlusIcon className="w-5 h-5 mr-2" />
-        {selectedPackage ? "Purchase Petals" : "Select a package"}
+        {isLoading ? (
+          <LoaderIcon className="w-5 h-5 mr-2 animate-spin" />
+        ) : (
+          <PlusIcon className="w-5 h-5 mr-2" />
+        )}
+        {isLoading
+          ? "Redirecting..."
+          : selectedPackage
+            ? "Purchase Petals"
+            : "Select a package"}
       </Button>
 
       {/* What are petals? */}
