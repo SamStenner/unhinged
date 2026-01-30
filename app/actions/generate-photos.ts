@@ -9,11 +9,11 @@ import sharp from "sharp";
 import { z } from "zod";
 
 async function compressImage(buffer: Buffer, mediaType: string): Promise<Buffer> {
-  const image = sharp(buffer).resize(500, 500, { fit: "cover" });
+  const image = sharp(buffer).resize(1000, 1000, { fit: "cover" });
   
   if (mediaType === "image/png") {
     // Lossless PNG compression with maximum effort
-    return image.png({ compressionLevel: 9, effort: 10 }).toBuffer();
+    return image.png({ compressionLevel: 3, effort: 10 }).toBuffer();
   } else if (mediaType === "image/webp") {
     // Lossless WebP
     return image.webp({ lossless: true }).toBuffer();
@@ -38,7 +38,7 @@ export interface GeneratePhotosResult {
 }
 
 const env = process.env.NODE_ENV;
-const isPro = env !== "development"
+const isPro = true// env !== "development"
 const model = isPro ? google("gemini-3-pro-image-preview") : google("gemini-2.5-flash-image")
 
 
@@ -123,13 +123,10 @@ export async function generatePhotos(
           },
         });
         const [file] = result.files;
-
-        console.log("File size:", file.base64.length);
         
         // Convert base64 to buffer, compress, and upload to Vercel Blob
         const rawBuffer = Buffer.from(file.base64, "base64");
         const buffer = await compressImage(rawBuffer, file.mediaType);
-        console.log("Compressed file size:", buffer.length);
         const extension = file.mediaType.split("/")[1] || "png";
         const filename = `generated-${Date.now()}-${index}.${extension}`;
         
