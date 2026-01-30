@@ -73,11 +73,11 @@ interface ProfileContextType {
 const ProfileContext = createContext<ProfileContextType | null>(null);
 
 export function ProfileProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, isLoading: isAuthLoading } = useAuth();
   const [data, setData] = useState<ProfileData>(defaultProfileData);
   const [balance, setBalance] = useState(0);
   const [isHydrated, setIsHydrated] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const prevUserRef = useRef<typeof user>(undefined);
 
@@ -130,6 +130,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           console.error("Error parsing saved profile:", e);
         }
       }
+      setIsLoading(false);
     }
   }, [user]);
 
@@ -177,10 +178,13 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     prevUserRef.current = user;
   }, [user, clearUploadedImagesFn]);
 
-  // Initial load
+  // Initial load - wait for auth to finish before loading profile
   useEffect(() => {
+    if (isAuthLoading) {
+      return; // Wait for auth to finish
+    }
     loadProfile().then(() => setIsHydrated(true));
-  }, [loadProfile]);
+  }, [loadProfile, isAuthLoading]);
 
   // Refresh from database
   const refreshFromDatabase = useCallback(async () => {
@@ -420,11 +424,6 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     },
     [user]
   );
-
-  // Don't render until hydrated to prevent hydration mismatch
-  if (!isHydrated) {
-    return null;
-  }
 
   return (
     <ProfileContext.Provider

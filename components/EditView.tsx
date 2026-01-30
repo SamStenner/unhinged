@@ -121,7 +121,7 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
   };
 
   return (
-    <div className="hide-scrollbar bg-white p-4">
+    <div className="hide-scrollbar p-4">
       {/* My Photos Section */}
       <div className="">
         <h2 className="text-[15px] font-medium text-gray-600 mb-3">

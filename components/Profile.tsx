@@ -10,16 +10,22 @@ import EditView from "./EditView";
 import ViewContent from "./ViewContent";
 import InviteDrawer from "./InviteDrawer";
 import SettingsDrawer from "./SettingsDrawer";
+import ProfileSkeleton from "./ProfileSkeleton";
 
 export default function Profile() {
-  const { balance } = useProfile();
-  const { user, openAuthModal } = useAuth();
+  const { balance, isLoading: isProfileLoading } = useProfile();
+  const { user, isLoading: isAuthLoading, openAuthModal } = useAuth();
   const isMobile = useIsMobile();
   const [activeIndex, setActiveIndex] = useState(0); // 0 = Edit, 1 = View
   const activeTab = activeIndex === 0 ? "edit" : "view";
   const setActiveTab = (tab: "edit" | "view") => setActiveIndex(tab === "edit" ? 0 : 1);
 
   const giftEnabled = false
+
+  // Show skeleton while checking auth state or loading profile data
+  if (isAuthLoading || isProfileLoading) {
+    return <ProfileSkeleton />;
+  }
 
   // Desktop: Side-by-side layout
   if (!isMobile) {
