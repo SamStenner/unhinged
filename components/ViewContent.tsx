@@ -77,7 +77,7 @@ export default function ViewContent() {
       // Save to IndexedDB
       await saveGeneratedPhotos([
         {
-          slot: generatedPhoto.slot,
+          slot,
           url: generatedPhoto.url,
           mediaType: generatedPhoto.mediaType,
         },
