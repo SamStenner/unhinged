@@ -29,7 +29,7 @@ import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 
 interface AIPhotoUploadProps {
-  onGenerate: (images: File[], count: number) => void;
+  onGenerate: (images: File[], count: number, prompt: string) => void;
   isGenerating?: boolean;
   emptySlotCount?: number;
   balance?: number;
@@ -78,21 +78,22 @@ export default function AIPhotoUpload({
         data: {
           images: uploadedImages.map((img) => img.file),
           count: photoCount,
+          prompt,
         },
       });
       setIsOpen(false);
       return;
     }
 
-    onGenerate(uploadedImages.map((img) => img.file), photoCount);
+    onGenerate(uploadedImages.map((img) => img.file), photoCount, prompt);
     setIsOpen(false);
   };
 
   // Resume generation after successful sign-in
   useEffect(() => {
     if (user && pendingAction?.type === "generate") {
-      const { images, count } = pendingAction.data;
-      onGenerate(images, count);
+      const { images, count, prompt: pendingPrompt } = pendingAction.data;
+      onGenerate(images, count, pendingPrompt || "");
       clearPendingAction();
     }
   }, [user, pendingAction, onGenerate, clearPendingAction]);

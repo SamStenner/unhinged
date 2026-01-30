@@ -16,6 +16,7 @@ interface PendingAction {
   data: {
     images: File[];
     count: number;
+    prompt?: string;
   };
 }
 

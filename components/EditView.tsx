@@ -70,7 +70,7 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
     (slot) => !photos.find((p) => p.slot === slot)
   ).length;
 
-  const handleGenerateAIPhotos = async (images: File[], count: number) => {
+  const handleGenerateAIPhotos = async (images: File[], count: number, prompt: string) => {
     if (!user) {
       setGenerationError("Please sign in to generate photos");
       return;
@@ -85,6 +85,7 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
         formData.append("images", image);
       });
       formData.append("count", String(count));
+      formData.append("prompt", prompt);
 
       const result = await generatePhotos(formData);
 

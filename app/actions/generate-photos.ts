@@ -1,11 +1,12 @@
 "use server";
 
-import { FilePart, generateText } from "ai";
+import { FilePart, generateText, Output } from "ai";
 import { put } from "@vercel/blob";
 import { addGeneratedPhotos, setPhotoSlot, getUserProfile, deductBalance } from "./db";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { google } from "@ai-sdk/google";
 import sharp from "sharp";
+import { z } from "zod";
 
 async function compressImage(buffer: Buffer, mediaType: string): Promise<Buffer> {
   const image = sharp(buffer).resize(500, 500, { fit: "cover" });
@@ -55,9 +56,10 @@ export async function generatePhotos(
     
     const authId = user.id;
 
-    // Get the uploaded images and count from formData
+    // Get the uploaded images, count, and prompt from formData
     const images = formData.getAll("images") as File[];
     const count = parseInt(formData.get("count") as string, 10) || 1;
+    const userPrompt = (formData.get("prompt") as string) || "";
 
     if (!images.length) {
       return { success: false, error: "No images provided" };
@@ -82,7 +84,17 @@ export async function generatePhotos(
       };
     }
 
-    const prompt = `Make a picture of the person in the uploaded photos, but for her dating/Hinge profile. Make her look happy, relaxed and confident.`;
+    const descriptions = await generateText({
+      model: google("gemini-3-flash-preview"),
+      prompt: `We will be generating ${count} photos for a dating/Hinge profile. The user has provided the following prompt: ${userPrompt}.\n\nEnd of user prompt.\n\nGenerate the prompt for each photo that will be used to generate the photo. The prompt should be a single sentence that describes the photo. The prompt should be in the same language as the user's profile. The prompt should be in the spirit of generating positive and attractive photos for a dating/Hinge profile. You must only output exactly ${count} prompts, regardless of what the user has provided.`,
+      output: Output.object({
+        name: "descriptions",
+        description: "The prompts for each photo",
+        schema: z.array(z.string()),
+      })
+    })
+
+    const prompts = descriptions.output
 
     const files = await Promise.all(images.map(async (image) => ({ type: "file", mediaType: image.type, data: await image.arrayBuffer() }) as FilePart))
     
@@ -95,7 +107,7 @@ export async function generatePhotos(
           prompt: [{
             role: "user",
             content: [
-              { type: "text", text: prompt },
+              { type: "text", text: prompts[index] },
               ...files
             ]
           }],
