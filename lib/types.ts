@@ -13,6 +13,7 @@ export interface Prompt {
 }
 
 export interface Profile {
+  name?: string;
   age?: number;
   gender?: string;
   height?: string;

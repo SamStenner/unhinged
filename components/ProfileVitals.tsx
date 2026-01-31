@@ -112,33 +112,44 @@ type ProfileVitalsProps = HTMLAttributes<HTMLDivElement>;
 export default function ProfileVitals({ className, ...props }: ProfileVitalsProps) {
   const { profile, updateProfile } = useProfile();
   const [editingField, setEditingField] = useState<string | null>(null);
-  const [birthdayInput, setBirthdayInput] = useState({
-    month: "",
-    day: "",
-    year: "",
-  });
+  const [birthdayInput, setBirthdayInput] = useState("");
+  const [birthdayError, setBirthdayError] = useState<string | null>(null);
 
-  const handleBirthdayChange = (field: "month" | "day" | "year", value: string) => {
-    const numericValue = value.replace(/\D/g, "");
+  const handleBirthdayChange = (value: string) => {
+    setBirthdayInput(value);
+    setBirthdayError(null);
 
-    let limitedValue = numericValue;
-    if (field === "month") limitedValue = numericValue.slice(0, 2);
-    if (field === "day") limitedValue = numericValue.slice(0, 2);
-    if (field === "year") limitedValue = numericValue.slice(0, 4);
-
-    const newBirthdayInput = { ...birthdayInput, [field]: limitedValue };
-    setBirthdayInput(newBirthdayInput);
-
-    const month = parseInt(newBirthdayInput.month, 10);
-    const day = parseInt(newBirthdayInput.day, 10);
-    const year = parseInt(newBirthdayInput.year, 10);
-
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31 && year >= 1900 && year <= new Date().getFullYear()) {
-      const date = new Date(year, month - 1, day);
-      if (date.getMonth() === month - 1 && date.getDate() === day) {
-        updateProfile({ age: calculateAge(date) });
-      }
+    if (!value) {
+      return;
     }
+
+    const date = new Date(value);
+    
+    if (isNaN(date.getTime())) {
+      setBirthdayError("Please enter a valid date");
+      return;
+    }
+
+    const year = date.getFullYear();
+    const today = new Date();
+    
+    if (year < 1900) {
+      setBirthdayError("Year must be 1900 or later");
+      return;
+    }
+    
+    if (date > today) {
+      setBirthdayError("Birthday cannot be in the future");
+      return;
+    }
+
+    const age = calculateAge(date);
+    if (age < 18) {
+      setBirthdayError("You must be at least 18 years old");
+      return;
+    }
+
+    updateProfile({ age });
   };
 
   const handleGenderSelect = (gender: string) => {
@@ -153,6 +164,10 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
     updateProfile({ height });
   };
 
+  const handleNameChange = (value: string) => {
+    updateProfile({ name: value });
+  };
+
   return (
     <div className={(className)} {...props}>
       {/* My Vitals Section - Hinge Style */}
@@ -161,6 +176,11 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
           My Vitals
         </h3>
         <div className="bg-white">
+          <VitalRow
+            label="Name"
+            value={profile.name}
+            onClick={() => setEditingField("name")}
+          />
           <VitalRow
             label="Gender"
             value={profile.gender}
@@ -184,6 +204,40 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
           />
         </div>
       </div>
+
+      {/* Name Edit Modal */}
+      <ResponsiveModal
+        open={editingField === "name"}
+        onOpenChange={(open) => !open && setEditingField(null)}
+        title="Name"
+        footer={
+          <>
+            <Button
+              onClick={() => setEditingField(null)}
+              className="w-full bg-[#67295F] hover:bg-[#5a2352]"
+            >
+              Done
+            </Button>
+            <Button variant="outline" className="w-full" onClick={() => setEditingField(null)}>
+              Cancel
+            </Button>
+          </>
+        }
+      >
+        <div className="px-4 pb-4">
+          <Input
+            type="text"
+            placeholder="Your name"
+            value={profile.name || ""}
+            onChange={(e) => handleNameChange(e.target.value)}
+            className="h-12 rounded-xl text-[16px]"
+            autoFocus
+          />
+          <p className="mt-2 text-[13px] text-gray-400">
+            This is how you&apos;ll appear on your profile
+          </p>
+        </div>
+      </ResponsiveModal>
 
       {/* Gender Edit Modal */}
       <ResponsiveModal
@@ -226,7 +280,12 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
       {/* Age Edit Modal */}
       <ResponsiveModal
         open={editingField === "age"}
-        onOpenChange={(open) => !open && setEditingField(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingField(null);
+            setBirthdayError(null);
+          }
+        }}
         title="Birthday"
         footer={
           <>
@@ -244,46 +303,26 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
       >
         <div className="px-4 pb-4">
           <p className="text-[14px] text-gray-500 mb-4">Enter your birthday to calculate your age</p>
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <Label className="text-[12px] text-gray-500 mb-1">Month</Label>
-              <Input
-                type="text"
-                inputMode="numeric"
-                placeholder="MM"
-                value={birthdayInput.month}
-                onChange={(e) => handleBirthdayChange("month", e.target.value)}
-                className="h-12 rounded-xl text-center text-[16px] font-medium"
-              />
-            </div>
-            <div className="flex-1">
-              <Label className="text-[12px] text-gray-500 mb-1">Day</Label>
-              <Input
-                type="text"
-                inputMode="numeric"
-                placeholder="DD"
-                value={birthdayInput.day}
-                onChange={(e) => handleBirthdayChange("day", e.target.value)}
-                className="h-12 rounded-xl text-center text-[16px] font-medium"
-              />
-            </div>
-            <div className="flex-[1.5]">
-              <Label className="text-[12px] text-gray-500 mb-1">Year</Label>
-              <Input
-                type="text"
-                inputMode="numeric"
-                placeholder="YYYY"
-                value={birthdayInput.year}
-                onChange={(e) => handleBirthdayChange("year", e.target.value)}
-                className="h-12 rounded-xl text-center text-[16px] font-medium"
-              />
-            </div>
+          <div>
+            <Label className="text-[12px] text-gray-500 mb-1">Date of birth</Label>
+            <Input
+              type="date"
+              value={birthdayInput}
+              onChange={(e) => handleBirthdayChange(e.target.value)}
+              max={new Date().toISOString().split("T")[0]}
+              min="1900-01-01"
+              className={`h-12 rounded-xl text-[16px] font-medium ${birthdayError ? "border-red-500 focus-visible:ring-red-500" : ""}`}
+            />
           </div>
-          {profile.age && profile.age > 0 && (
+          {birthdayError ? (
+            <p className="mt-2 text-[14px] text-red-500 font-medium">
+              {birthdayError}
+            </p>
+          ) : profile.age && profile.age > 0 ? (
             <p className="mt-4 text-[14px] text-[#67295F] font-medium text-center">
               You&apos;ll be shown as {profile.age} years old
             </p>
-          )}
+          ) : null}
         </div>
       </ResponsiveModal>
 

@@ -13,14 +13,17 @@ import SettingsDrawer from "./SettingsDrawer";
 import ProfileSkeleton from "./ProfileSkeleton";
 
 export default function Profile() {
-  const { balance, isLoading: isProfileLoading } = useProfile();
+  const { profile, balance, isLoading: isProfileLoading } = useProfile();
   const { user, isLoading: isAuthLoading, openAuthModal } = useAuth();
   const isMobile = useIsMobile();
   const [activeIndex, setActiveIndex] = useState(0); // 0 = Edit, 1 = View
+  const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
   const activeTab = activeIndex === 0 ? "edit" : "view";
   const setActiveTab = (tab: "edit" | "view") => setActiveIndex(tab === "edit" ? 0 : 1);
 
   const giftEnabled = false
+
+  const title = profile.name || "Unhinged";
 
   // Show skeleton while checking auth state or loading profile data
   if (isAuthLoading) {
@@ -43,7 +46,7 @@ export default function Profile() {
             ) : (
               <div className="size-5" />
             )}
-            <h1 className="absolute left-1/2 -translate-x-1/2 text-xl font-semibold text-primary">Unhinged</h1>
+            <h1 className="absolute left-1/2 -translate-x-1/2 text-xl font-semibold text-primary">{title}</h1>
             {user ? (
               <SettingsDrawer>
                 <button type="button" className="flex items-center gap-1.5 px-3 py-1.5 bg-[#67295F]/10 hover:bg-[#67295F]/15 rounded-full transition-all">
@@ -84,7 +87,7 @@ export default function Profile() {
 
   // Mobile: Simple tabs with normal page scroll
   return (
-    <div className="max-w-[430px] mx-auto bg-[#f5f5f5]">
+    <div className="max-w-[430px] mx-auto min-h-screen bg-[#f5f5f5]">
       {/* Sticky Header */}
       <header className="sticky top-0 z-50 bg-white">
         {/* Top row */}
@@ -98,7 +101,7 @@ export default function Profile() {
           ) : (
             <div className="size-5" />
           )}
-          <h1 className="absolute left-1/2 -translate-x-1/2 text-xl font-semibold text-primary">Unhinged</h1>
+          <h1 className="absolute left-1/2 -translate-x-1/2 text-xl font-semibold text-primary">{title}</h1>
           {user ? (
             <SettingsDrawer>
               <button type="button" className="flex items-center gap-1.5 px-3 py-1.5 bg-[#67295F]/10 hover:bg-[#67295F]/15 rounded-full transition-all">
@@ -138,8 +141,12 @@ export default function Profile() {
       </header>
 
       {/* Swipeable content */}
-      <SwipeableViews activeIndex={activeIndex} onIndexChange={setActiveIndex}>
-        <EditView />
+      <SwipeableViews activeIndex={activeIndex} onIndexChange={setActiveIndex} allowSwipe={!isDraggingPhoto}>
+        <EditView
+          className="bg-white"
+          onDragStart={() => setIsDraggingPhoto(true)}
+          onDragEnd={() => setIsDraggingPhoto(false)}
+        />
         <ViewContent />
       </SwipeableViews>
     </div>

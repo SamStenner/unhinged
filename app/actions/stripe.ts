@@ -27,7 +27,7 @@ export async function createCheckoutSession(
 
     // Get the origin for redirect URLs
     const headersList = await headers();
-    const origin = headersList.get("origin") || "http://localhost:3000";
+    const origin = headersList.get("origin") ?? "http://localhost:3000";
 
     // Create a Stripe Checkout Session
     const session = await stripe.checkout.sessions.create({

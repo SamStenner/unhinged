@@ -96,6 +96,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         if (dbProfile) {
           setData({
             profile: {
+              name: dbProfile.user.name ?? undefined,
               age: dbProfile.user.age ?? undefined,
               gender: dbProfile.user.gender ?? undefined,
               height: dbProfile.user.height ?? undefined,
@@ -209,6 +210,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       // If authenticated, also save to database
       if (user) {
         await updateUserProfile(user.id, {
+          name: updates.name ?? null,
           age: updates.age ?? null,
           gender: updates.gender ?? null,
           height: updates.height ?? null,

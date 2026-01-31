@@ -22,8 +22,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "./ui/alert-dialog";
+import { cn } from "@/lib/utils";
 
-interface EditViewProps {
+interface EditViewProps extends React.HTMLAttributes<HTMLDivElement> {
   onDragStart?: () => void;
   onDragEnd?: () => void;
 }
@@ -78,7 +79,7 @@ async function compressImage(file: File, maxSize = 1024, quality = 0.8): Promise
   });
 }
 
-export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
+export default function EditView({ onDragStart, onDragEnd, className, ...props }: EditViewProps) {
   const { user, signOut } = useAuth();
   const {
     photos,
@@ -176,7 +177,7 @@ export default function EditView({ onDragStart, onDragEnd }: EditViewProps) {
   };
 
   return (
-    <div className="hide-scrollbar p-4">
+    <div className={cn("hide-scrollbar p-4", className)} {...props}>
       {/* My Photos Section */}
       <div className="">
         <h2 className="text-[15px] font-medium text-gray-600 mb-3">

@@ -3,6 +3,7 @@ import { Fragment, ReactNode } from "react";
 
 interface ProfileInfoProps {
   profile: {
+    name?: string;
     age?: number;
     gender?: string;
     height?: string;
@@ -49,7 +50,7 @@ export default function ProfileInfo({ profile }: ProfileInfoProps) {
   const hasVitals = vitals.length > 0;
   const hasLocation = !!profile.location;
 
-  // Don't render anything if no vitals and no location
+  // Don't render anything if no vitals, no location
   if (!hasVitals && !hasLocation) {
     return null;
   }

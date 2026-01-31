@@ -10,12 +10,14 @@ interface SwipeableViewsProps {
   activeIndex: number;
   onIndexChange: (index: number) => void;
   children: ReactNode[];
+  allowSwipe?: boolean;
 }
 
 export default function SwipeableViews({
   activeIndex,
   onIndexChange,
   children,
+  allowSwipe = true,
 }: SwipeableViewsProps) {
   const swiperRef = useRef<SwiperType | null>(null);
 
@@ -25,6 +27,13 @@ export default function SwipeableViews({
       swiperRef.current.slideTo(activeIndex);
     }
   }, [activeIndex]);
+
+  // Enable/disable swiping when allowSwipe changes
+  useEffect(() => {
+    if (swiperRef.current) {
+      swiperRef.current.allowTouchMove = allowSwipe;
+    }
+  }, [allowSwipe]);
 
   return (
     <Swiper
@@ -40,6 +49,7 @@ export default function SwipeableViews({
       autoHeight={true}
       simulateTouch={true}
       touchStartPreventDefault={false}
+      allowTouchMove={allowSwipe}
     >
       {children.map((child, index) => (
         <SwiperSlide key={index}>

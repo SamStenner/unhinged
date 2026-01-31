@@ -212,7 +212,7 @@ export default function AIPhotoUpload({
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Describe the style of photos you want (optional)..."
-          className="rounded-xl bg-gray-50 text-[14px] resize-none focus-visible:ring-[#67295F] focus-visible:border-[#67295F]"
+          className="rounded-xl bg-gray-50 text-[14px] resize-none focus-visible:ring-[#67295F] focus-visible:border-[#67295F] shadow-none"
           rows={isMobile ? 3 : 2}
         />
       </div>
