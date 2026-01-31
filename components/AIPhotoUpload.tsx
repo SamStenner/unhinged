@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { useIsMobile } from "@/lib/is-mobile";
@@ -42,7 +42,7 @@ export default function AIPhotoUpload({
   balance = 0,
 }: AIPhotoUploadProps) {
   const isMobile = useIsMobile();
-  const { user, openAuthModal, pendingAction, clearPendingAction } = useAuth();
+  const { user } = useAuth();
   const { uploadedImages, addUploadedImage, removeUploadedImage } = useProfile();
   const [isOpen, setIsOpen] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -71,32 +71,10 @@ export default function AIPhotoUpload({
   const handleGenerate = () => {
     if (uploadedImages.length === 0) return;
 
-    // If user is not signed in, open auth modal with pending action
-    if (!user) {
-      openAuthModal({
-        type: "generate",
-        data: {
-          images: uploadedImages.map((img) => img.file),
-          count: photoCount,
-          prompt,
-        },
-      });
-      setIsOpen(false);
-      return;
-    }
-
+    // Always call onGenerate - EditView will handle auth check and preview vs real generation
     onGenerate(uploadedImages.map((img) => img.file), photoCount, prompt);
     setIsOpen(false);
   };
-
-  // Resume generation after successful sign-in
-  useEffect(() => {
-    if (user && pendingAction?.type === "generate") {
-      const { images, count, prompt: pendingPrompt } = pendingAction.data;
-      onGenerate(images, count, pendingPrompt || "");
-      clearPendingAction();
-    }
-  }, [user, pendingAction, onGenerate, clearPendingAction]);
 
   const handleOpenChange = (open: boolean) => {
     if (isGenerating && open) return;
@@ -217,38 +195,40 @@ export default function AIPhotoUpload({
         />
       </div>
 
-      {/* Photo count slider */}
-      <div className="pt-2 sm:pt-0">
-        <div className="flex items-center justify-between mb-3">
-          <Label className="text-sm text-gray-700">
-            {photoCountLabel}
-          </Label>
-          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-[#67295F]/10 to-[#67295F]/5 rounded-full">
-            <span className="text-xs">🌸</span>
-            <span className="text-sm font-semibold text-[#67295F]">{petalCost}</span>
+      {/* Photo count slider - only show when signed in */}
+      {user && (
+        <div className="pt-2 sm:pt-0">
+          <div className="flex items-center justify-between mb-3">
+            <Label className="text-sm text-gray-700">
+              {photoCountLabel}
+            </Label>
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-[#67295F]/10 to-[#67295F]/5 rounded-full">
+              <span className="text-xs">🌸</span>
+              <span className="text-sm font-semibold text-[#67295F]">{petalCost}</span>
+            </div>
+          </div>
+          <div className="relative">
+            <Slider
+              min={1}
+              max={6}
+              step={1}
+              value={[photoCount]}
+              onValueChange={(value) => setPhotoCount(value[0])}
+              className="w-full [&_[data-slot=slider-track]]:h-2 [&_[data-slot=slider-range]]:bg-[#67295F] [&_[data-slot=slider-thumb]]:border-[#67295F] [&_[data-slot=slider-thumb]]:size-5"
+            />
+            <div className="flex justify-between mt-2 px-0.5">
+              {[1, 2, 3, 4, 5, 6].map((n) => (
+                <span
+                  key={n}
+                  className={`text-xs ${photoCount === n ? "text-[#67295F] font-semibold" : "text-gray-400"}`}
+                >
+                  {n}
+                </span>
+              ))}
+            </div>
           </div>
         </div>
-        <div className="relative">
-          <Slider
-            min={1}
-            max={6}
-            step={1}
-            value={[photoCount]}
-            onValueChange={(value) => setPhotoCount(value[0])}
-            className="w-full [&_[data-slot=slider-track]]:h-2 [&_[data-slot=slider-range]]:bg-[#67295F] [&_[data-slot=slider-thumb]]:border-[#67295F] [&_[data-slot=slider-thumb]]:size-5"
-          />
-          <div className="flex justify-between mt-2 px-0.5">
-            {[1, 2, 3, 4, 5, 6].map((n) => (
-              <span
-                key={n}
-                className={`text-xs ${photoCount === n ? "text-[#67295F] font-semibold" : "text-gray-400"}`}
-              >
-                {n}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
+      )}
     </div>
   );
 
@@ -282,7 +262,7 @@ export default function AIPhotoUpload({
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
           </svg>
-          {photoCountLabel}
+          {user ? photoCountLabel : "Generate photos"}
         </>
       )}
     </button>

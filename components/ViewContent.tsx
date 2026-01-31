@@ -9,8 +9,8 @@ import PromptCard from "./PromptCard";
 import { generatePhotos } from "@/app/actions/generate-photos";
 
 export default function ViewContent() {
-  const { user } = useAuth();
-  const { profile, photos, prompts, uploadedImages, refreshFromDatabase } =
+  const { user, openAuthModal } = useAuth();
+  const { profile, photos, prompts, uploadedImages, refreshFromDatabase, previewPhotos } =
     useProfile();
   const [regeneratingSlot, setRegeneratingSlot] = useState<number | null>(null);
   const [activeOverlaySlot, setActiveOverlaySlot] = useState<number | null>(
@@ -23,12 +23,23 @@ export default function ViewContent() {
     setShowPrompts(localStorage.getItem("showPrompts") === "true");
   }, []);
 
+  // Use preview photos when not signed in and they exist
+  const displayPhotos = !user && previewPhotos.length > 0
+    ? previewPhotos.map((p) => ({
+        id: p.id,
+        src: p.dataUrl,
+        alt: "Preview photo",
+        slot: p.slot,
+      }))
+    : photos;
+  const isShowingPreviews = !user && previewPhotos.length > 0;
+
   // Get photos by slot, filtering out empty slots
-  const getPhotoBySlot = (slot: number) => photos.find((p) => p.slot === slot);
+  const getPhotoBySlot = (slot: number) => displayPhotos.find((p) => p.slot === slot);
   const sortedPrompts = [...prompts].sort((a, b) => a.order - b.order);
 
   // Check if profile has any content
-  const hasPhotos = photos.length > 0;
+  const hasPhotos = displayPhotos.length > 0;
   const hasVitals =
     profile.age !== undefined ||
     !!profile.gender ||
@@ -125,7 +136,7 @@ export default function ViewContent() {
             src={getPhotoBySlot(0)!.src}
             alt={getPhotoBySlot(0)!.alt}
             slot={0}
-            onRegenerate={handleRegenerate}
+            onRegenerate={isShowingPreviews ? undefined : handleRegenerate}
             isOverlayActive={activeOverlaySlot === 0}
             onOverlayChange={handleOverlayChange(0)}
           />
@@ -143,7 +154,7 @@ export default function ViewContent() {
             src={getPhotoBySlot(1)!.src}
             alt={getPhotoBySlot(1)!.alt}
             slot={1}
-            onRegenerate={handleRegenerate}
+            onRegenerate={isShowingPreviews ? undefined : handleRegenerate}
             isOverlayActive={activeOverlaySlot === 1}
             onOverlayChange={handleOverlayChange(1)}
           />
@@ -166,7 +177,7 @@ export default function ViewContent() {
             src={getPhotoBySlot(2)!.src}
             alt={getPhotoBySlot(2)!.alt}
             slot={2}
-            onRegenerate={handleRegenerate}
+            onRegenerate={isShowingPreviews ? undefined : handleRegenerate}
             isOverlayActive={activeOverlaySlot === 2}
             onOverlayChange={handleOverlayChange(2)}
           />
@@ -181,7 +192,7 @@ export default function ViewContent() {
             src={getPhotoBySlot(3)!.src}
             alt={getPhotoBySlot(3)!.alt}
             slot={3}
-            onRegenerate={handleRegenerate}
+            onRegenerate={isShowingPreviews ? undefined : handleRegenerate}
             isOverlayActive={activeOverlaySlot === 3}
             onOverlayChange={handleOverlayChange(3)}
           />
@@ -204,7 +215,7 @@ export default function ViewContent() {
             src={getPhotoBySlot(4)!.src}
             alt={getPhotoBySlot(4)!.alt}
             slot={4}
-            onRegenerate={handleRegenerate}
+            onRegenerate={isShowingPreviews ? undefined : handleRegenerate}
             isOverlayActive={activeOverlaySlot === 4}
             onOverlayChange={handleOverlayChange(4)}
           />
@@ -227,11 +238,37 @@ export default function ViewContent() {
             src={getPhotoBySlot(5)!.src}
             alt={getPhotoBySlot(5)!.alt}
             slot={5}
-            onRegenerate={handleRegenerate}
+            onRegenerate={isShowingPreviews ? undefined : handleRegenerate}
             isOverlayActive={activeOverlaySlot === 5}
             onOverlayChange={handleOverlayChange(5)}
           />
           {regeneratingSlot === 5 && <RegeneratingOverlay />}
+        </div>
+      )}
+
+      {/* Sign up CTA for preview photos */}
+      {isShowingPreviews && (
+        <div className="px-4 py-6">
+          <button
+            type="button"
+            onClick={() => openAuthModal()}
+            className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#67295F] to-[#8B3A7F] text-white font-semibold text-[15px] flex items-center justify-center gap-2 hover:from-[#5a2352] hover:to-[#7a3370] transition-all"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+            Sign up to unlock images
+          </button>
         </div>
       )}
     </div>

@@ -8,21 +8,6 @@ import { google } from "@ai-sdk/google";
 import sharp from "sharp";
 import { z } from "zod";
 
-async function compressImage(buffer: Buffer, mediaType: string): Promise<Buffer> {
-  const image = sharp(buffer).resize(1000, 1000, { fit: "cover" });
-  
-  if (mediaType === "image/png") {
-    // Lossless PNG compression with maximum effort
-    return image.png({ compressionLevel: 3, effort: 10 }).toBuffer();
-  } else if (mediaType === "image/webp") {
-    // Lossless WebP
-    return image.webp({ lossless: true }).toBuffer();
-  } else {
-    // For JPEG and others, use high quality (near-lossless)
-    return image.jpeg({ quality: 95, mozjpeg: true }).toBuffer();
-  }
-}
-
 export interface GeneratedPhoto {
   id: string;
   url: string;
@@ -37,8 +22,20 @@ export interface GeneratePhotosResult {
   newBalance?: number;
 }
 
+export interface PreviewPhoto {
+  id: string;
+  dataUrl: string;
+  slot: number;
+}
+
+export interface GeneratePreviewPhotosResult {
+  success: boolean;
+  photos?: PreviewPhoto[];
+  error?: string;
+}
+
 const env = process.env.NODE_ENV;
-const isPro = true// env !== "development"
+const isPro = env !== "development"
 const model = isPro ? google("gemini-3-pro-image-preview") : google("gemini-2.5-flash-image")
 
 
@@ -194,5 +191,116 @@ export async function generatePhotos(
       success: false,
       error: error instanceof Error ? error.message : "Unknown error occurred",
     };
+  }
+}
+
+// Fast preview model for unauthenticated users
+const previewModel = google("gemini-2.5-flash-image");
+
+export async function generatePreviewPhotos(
+  formData: FormData
+): Promise<GeneratePreviewPhotosResult> {
+  try {
+    // Get the uploaded images, count, and prompt from formData
+    const images = formData.getAll("images") as File[];
+    const count = parseInt(formData.get("count") as string, 10) || 1;
+    const userPrompt = (formData.get("prompt") as string) || "";
+
+    if (!images.length) {
+      return { success: false, error: "No images provided" };
+    }
+
+    if (count < 1 || count > 6) {
+      return { success: false, error: "Count must be between 1 and 6" };
+    }
+
+    // Generate simple prompts for preview (faster than calling another model)
+    const basePrompts = [
+      "A natural, attractive profile photo with good lighting",
+      "A friendly, approachable portrait photo",
+      "A casual, confident profile picture",
+      "A warm, inviting headshot photo",
+      "A relaxed, genuine portrait",
+      "An engaging, personable profile photo",
+    ];
+
+    const files = await Promise.all(
+      images.map(async (image) => ({
+        type: "file",
+        mediaType: image.type,
+        data: await image.arrayBuffer(),
+      }) as FilePart)
+    );
+
+    // Generate preview photos with fast model - returns blurred base64
+    const generatedPhotos = await Promise.all(
+      Array.from({ length: count }, async (_, index) => {
+        const promptText = userPrompt || basePrompts[index % basePrompts.length];
+        
+        const result = await generateText({
+          model: previewModel,
+          prompt: [{
+            role: "user",
+            content: [
+              { type: "text", text: promptText },
+              ...files
+            ]
+          }],
+          providerOptions: {
+            google: {
+              imageConfig: {
+                aspectRatio: '1:1',
+                // No imageSize specified - uses default lower resolution
+              },
+            },
+          },
+        });
+
+        const [file] = result.files;
+        
+        // Apply heavy blur server-side using sharp (cannot be bypassed by client)
+        const rawBuffer = Buffer.from(file.base64, "base64");
+        const blurredBuffer = await sharp(rawBuffer)
+          .blur(30) // Heavy blur - makes image unrecognizable but shows colors/shapes
+          .jpeg({ quality: 60 }) // Lower quality for previews
+          .toBuffer();
+        
+        // Return as data URL (no blob storage for ephemeral previews)
+        const blurredBase64 = blurredBuffer.toString("base64");
+        const dataUrl = `data:image/jpeg;base64,${blurredBase64}`;
+
+        return {
+          id: `preview-${Date.now()}-${index}`,
+          dataUrl,
+          slot: index,
+        };
+      })
+    );
+
+    return {
+      success: true,
+      photos: generatedPhotos,
+    };
+  } catch (error) {
+    console.error("Error generating preview photos:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error occurred",
+    };
+  }
+}
+
+async function compressImage(buffer: Buffer, mediaType: string): Promise<Buffer> {
+  const image = sharp(buffer).resize(1000, 1000, { fit: "cover" });
+  
+  if (mediaType === "image/png") {
+    // Lossless PNG compression with maximum effort
+    return image.png({ compressionLevel: 3, effort: 10 }).toBuffer();
+  } else if (mediaType === "image/webp") {
+    // Lossless WebP
+    return image.webp({ lossless: true }).toBuffer();
+  } else {
+    // For JPEG and others, use high quality (near-lossless)
+    return image.jpeg({ quality: 95, mozjpeg: true }).toBuffer();
   }
 }

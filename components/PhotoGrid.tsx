@@ -28,6 +28,7 @@ interface PhotoGridProps {
   onDragStart?: () => void;
   onDragEnd?: () => void;
   isGenerating?: boolean;
+  isBlurred?: boolean;
 }
 
 // Each grid item has an ID and knows its slot
@@ -40,9 +41,11 @@ interface GridItem {
 function SortablePhotoTile({
   item,
   onRemove,
+  isBlurred = false,
 }: {
   item: GridItem;
   onRemove: () => void;
+  isBlurred?: boolean;
 }) {
   const {
     attributes,
@@ -51,7 +54,7 @@ function SortablePhotoTile({
     transform,
     transition,
     isDragging,
-  } = useSortable({ id: item.id });
+  } = useSortable({ id: item.id, disabled: isBlurred });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -66,10 +69,9 @@ function SortablePhotoTile({
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative aspect-square rounded-xl overflow-hidden bg-gray-100 cursor-grab active:cursor-grabbing ${isDragging ? "shadow-xl" : ""
+      className={`relative aspect-square rounded-xl overflow-hidden bg-gray-100 ${isBlurred ? "cursor-default" : "cursor-grab active:cursor-grabbing"} ${isDragging ? "shadow-xl" : ""
         }`}
-      {...attributes}
-      {...listeners}
+      {...(isBlurred ? {} : { ...attributes, ...listeners })}
     >
       <Image
         src={item.photo.src}
@@ -78,32 +80,35 @@ function SortablePhotoTile({
         className="object-cover pointer-events-none"
         sizes="(max-width: 430px) 33vw, 140px"
         draggable={false}
+        unoptimized={item.photo.src.startsWith("data:")}
       />
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          onRemove();
-        }}
-        onPointerDown={(e) => e.stopPropagation()}
-        className="absolute top-1.5 right-1.5 w-6 h-6 bg-white rounded-full flex items-center justify-center z-20"
-        aria-label="Remove photo"
-      >
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="#666"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+      {!isBlurred && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            onRemove();
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="absolute top-1.5 right-1.5 w-6 h-6 bg-white rounded-full flex items-center justify-center z-20"
+          aria-label="Remove photo"
         >
-          <line x1="18" y1="6" x2="6" y2="18" />
-          <line x1="6" y1="6" x2="18" y2="18" />
-        </svg>
-      </button>
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#666"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
@@ -213,6 +218,7 @@ export default function PhotoGrid({
   onDragStart,
   onDragEnd: onDragEndCallback,
   isGenerating = false,
+  isBlurred = false,
 }: PhotoGridProps) {
   // Build grid items from photos, maintaining slot order
   const buildGridItems = (currentPhotos: Photo[]): GridItem[] => {
@@ -310,8 +316,13 @@ export default function PhotoGrid({
                     key={item.id}
                     item={item}
                     onRemove={() => onRemovePhoto(item.photo!.id)}
+                    isBlurred={isBlurred}
                   />
                 );
+              }
+              // Don't show empty slots when showing blurred previews
+              if (isBlurred) {
+                return null;
               }
               return (
                 <SortableEmptyTile

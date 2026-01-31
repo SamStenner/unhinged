@@ -34,6 +34,18 @@ export interface UploadedImage {
   preview: string;
 }
 
+export interface PreviewPhoto {
+  id: string;
+  dataUrl: string;
+  slot: number;
+}
+
+export interface PendingGenerationParams {
+  images: File[];
+  count: number;
+  prompt: string;
+}
+
 interface ProfileContextType {
   profile: Profile;
   photos: Photo[];
@@ -46,6 +58,15 @@ interface ProfileContextType {
   addUploadedImage: (file: File) => void;
   removeUploadedImage: (id: string) => void;
   clearUploadedImages: () => void;
+
+  // Preview photos (session-only, for unauthenticated users)
+  previewPhotos: PreviewPhoto[];
+  setPreviewPhotos: (photos: PreviewPhoto[]) => void;
+  clearPreviewPhotos: () => void;
+
+  // Pending generation params (for replay after signup)
+  pendingGenerationParams: PendingGenerationParams | null;
+  setPendingGenerationParams: (params: PendingGenerationParams | null) => void;
 
   // Profile actions
   updateProfile: (updates: Partial<Profile>) => void;
@@ -66,8 +87,8 @@ interface ProfileContextType {
   deductBalance: (amount: number) => Promise<boolean>;
   addBalance: (amount: number) => Promise<void>;
 
-  // Refresh from database
-  refreshFromDatabase: () => Promise<void>;
+  // Refresh from database - returns the number of photos loaded
+  refreshFromDatabase: () => Promise<{ photosCount: number }>;
 }
 
 const ProfileContext = createContext<ProfileContextType | null>(null);
@@ -79,10 +100,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [isHydrated, setIsHydrated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
+  const [previewPhotos, setPreviewPhotosState] = useState<PreviewPhoto[]>([]);
+  const [pendingGenerationParams, setPendingGenerationParamsState] = useState<PendingGenerationParams | null>(null);
   const prevUserRef = useRef<typeof user>(undefined);
 
   // Load profile from database or localStorage
-  const loadProfile = useCallback(async () => {
+  const loadProfile = useCallback(async (): Promise<{ photosCount: number }> => {
     if (user) {
       // User is authenticated - load from database
       setIsLoading(true);
@@ -94,6 +117,12 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         const dbProfile = await getUserProfile(user.id);
 
         if (dbProfile) {
+          const loadedPhotos = dbProfile.photos.map((p) => ({
+            id: p.id,
+            src: p.url,
+            alt: "Profile photo",
+            slot: p.slot,
+          }));
           setData({
             profile: {
               name: dbProfile.user.name ?? undefined,
@@ -102,18 +131,16 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
               height: dbProfile.user.height ?? undefined,
               location: dbProfile.user.location ?? undefined,
             },
-            photos: dbProfile.photos.map((p) => ({
-              id: p.id,
-              src: p.url,
-              alt: "Profile photo",
-              slot: p.slot,
-            })),
+            photos: loadedPhotos,
             prompts: dbProfile.prompts,
           });
           setBalance(dbProfile.user.balance);
+          return { photosCount: loadedPhotos.length };
         }
+        return { photosCount: 0 };
       } catch (error) {
         console.error("Error loading profile from database:", error);
+        return { photosCount: 0 };
       } finally {
         setIsLoading(false);
       }
@@ -132,6 +159,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         }
       }
       setIsLoading(false);
+      return { photosCount: 0 };
     }
   }, [user]);
 
@@ -159,6 +187,20 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Preview photos actions
+  const setPreviewPhotos = useCallback((photos: PreviewPhoto[]) => {
+    setPreviewPhotosState(photos);
+  }, []);
+
+  const clearPreviewPhotos = useCallback(() => {
+    setPreviewPhotosState([]);
+  }, []);
+
+  // Pending generation params actions
+  const setPendingGenerationParams = useCallback((params: PendingGenerationParams | null) => {
+    setPendingGenerationParamsState(params);
+  }, []);
+
   // Detect sign out and reset state
   useEffect(() => {
     // If user was previously signed in and is now signed out
@@ -170,6 +212,10 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       // Clear uploaded images
       clearUploadedImagesFn();
 
+      // Clear preview photos and pending params
+      clearPreviewPhotos();
+      setPendingGenerationParams(null);
+
       // Clear localStorage
       localStorage.removeItem(USER_PROFILE_KEY);
       localStorage.removeItem("showPrompts");
@@ -177,7 +223,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
     // Update ref to current user
     prevUserRef.current = user;
-  }, [user, clearUploadedImagesFn]);
+  }, [user, clearUploadedImagesFn, clearPreviewPhotos, setPendingGenerationParams]);
 
   // Initial load - wait for auth to finish before loading profile
   useEffect(() => {
@@ -188,8 +234,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   }, [loadProfile, isAuthLoading]);
 
   // Refresh from database
-  const refreshFromDatabase = useCallback(async () => {
-    await loadProfile();
+  const refreshFromDatabase = useCallback(async (): Promise<{ photosCount: number }> => {
+    return await loadProfile();
   }, [loadProfile]);
 
   // Profile actions
@@ -209,13 +255,22 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
       // If authenticated, also save to database
       if (user) {
-        await updateUserProfile(user.id, {
-          name: updates.name ?? null,
-          age: updates.age ?? null,
-          gender: updates.gender ?? null,
-          height: updates.height ?? null,
-          location: updates.location ?? null,
-        });
+        // Only include fields that are actually being updated
+        const dbUpdates: {
+          name?: string | null;
+          age?: number | null;
+          gender?: string | null;
+          height?: string | null;
+          location?: string | null;
+        } = {};
+        
+        if ('name' in updates) dbUpdates.name = updates.name ?? null;
+        if ('age' in updates) dbUpdates.age = updates.age ?? null;
+        if ('gender' in updates) dbUpdates.gender = updates.gender ?? null;
+        if ('height' in updates) dbUpdates.height = updates.height ?? null;
+        if ('location' in updates) dbUpdates.location = updates.location ?? null;
+        
+        await updateUserProfile(user.id, dbUpdates);
       }
     },
     [user]
@@ -439,6 +494,11 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         addUploadedImage,
         removeUploadedImage,
         clearUploadedImages: clearUploadedImagesFn,
+        previewPhotos,
+        setPreviewPhotos,
+        clearPreviewPhotos,
+        pendingGenerationParams,
+        setPendingGenerationParams,
         updateProfile,
         addPhotoToSlot,
         addPhotosToSlots,
