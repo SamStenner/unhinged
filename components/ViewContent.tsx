@@ -117,7 +117,7 @@ export default function ViewContent() {
   }
 
   return (
-    <div className="hide-scrollbar pb-8">
+    <div className="hide-scrollbar">
       {/* Image 1 (slot 0) */}
       {getPhotoBySlot(0) && (
         <div className="relative">

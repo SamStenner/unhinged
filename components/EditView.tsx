@@ -177,7 +177,7 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
   };
 
   return (
-    <div className={cn("hide-scrollbar p-4", className)} {...props}>
+    <div className={cn("hide-scrollbar p-4", className)} {...props} data-vaul-drawer-wrapper="" b>
       {/* My Photos Section */}
       <div className="">
         <h2 className="text-[15px] font-medium text-gray-600 mb-3">

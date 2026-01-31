@@ -87,7 +87,7 @@ export default function Profile() {
 
   // Mobile: Simple tabs with normal page scroll
   return (
-    <div className="max-w-[430px] mx-auto min-h-screen bg-[#f5f5f5]">
+    <div className="max-w-[430px] mx-auto min-h-screen bg-white">
       {/* Sticky Header */}
       <header className="sticky top-0 z-50 bg-white">
         {/* Top row */}

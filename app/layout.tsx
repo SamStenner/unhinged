@@ -30,7 +30,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${dmSans.variable} ${dmSerif.variable} antialiased`}>
+      <body className={`${dmSans.variable} ${dmSerif.variable} antialiased bg-white `}>
         <AuthProvider>
           <ProfileProvider>{children}</ProfileProvider>
           <AuthModal />

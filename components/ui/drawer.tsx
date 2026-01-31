@@ -11,6 +11,8 @@ function Drawer({
   return (
     <DrawerPrimitive.Root
       data-slot="drawer"
+      shouldScaleBackground
+      setBackgroundColorOnScale={false}
       {...props}
     />
   )
