@@ -23,14 +23,6 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "50mb",
     },
   },
-  async rewrites() {
-    return [
-      {
-        source: '/privacy',
-        destination: '/privacy/index.html',
-      },
-    ]
-  },
 };
 
 export default nextConfig;
