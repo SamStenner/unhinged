@@ -6,8 +6,8 @@ import { addGeneratedPhotos, setPhotoSlot, getUserProfile, deductBalance } from 
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { google } from "@ai-sdk/google";
 import sharp from "sharp";
-import { z } from "zod";
 import { openai } from '@ai-sdk/openai';
+import { examples, rules } from "./image-schema";
 
 export interface GeneratedPhoto {
   id: string;
@@ -36,7 +36,7 @@ export interface GeneratePreviewPhotosResult {
 }
 
 const env = process.env.NODE_ENV;
-const isPro = env !== "development"
+const isPro = true //env !== "development"
 const model = isPro ? google("gemini-3-pro-image-preview") : google("gemini-2.5-flash-image")
 
 
@@ -54,10 +54,11 @@ export async function generatePhotos(
     
     const authId = user.id;
 
-    // Get the uploaded images, count, and prompt from formData
+    // Get the uploaded images and prompts from formData
     const images = formData.getAll("images") as File[];
-    const count = parseInt(formData.get("count") as string, 10) || 1;
-    const userPrompt = (formData.get("prompt") as string) || "";
+    const promptsJson = formData.get("prompts") as string;
+    const prompts: string[] = promptsJson ? JSON.parse(promptsJson) : [];
+    const count = prompts.length;
 
     if (!images.length) {
       return { success: false, error: "No images provided" };
@@ -82,31 +83,24 @@ export async function generatePhotos(
       };
     }
 
-    const descriptions = await generateText({
-      model: google("gemini-3-flash-preview"),
-      prompt: `We will be generating ${count} photos for a dating/Hinge profile. The user has provided the following prompt: ${userPrompt}.\n\nEnd of user prompt.\n\nGenerate the prompt for each photo that will be used to generate the photo. The prompt should be a single sentence that describes the photo. The prompt should be in the same language as the user's profile. The prompt should be in the spirit of generating positive and attractive photos for a dating/Hinge profile. You must only output exactly ${count} prompts, regardless of what the user has provided.`,
-      output: Output.object({
-        name: "descriptions",
-        description: "The prompts for each photo",
-        schema: z.array(z.string()),
-      })
-    })
-
-    const prompts = descriptions.output
-
     const files = await Promise.all(images.map(async (image) => ({ type: "file", mediaType: image.type, data: await image.arrayBuffer() }) as FilePart))
     
-
     // Generate the requested number of photos (no slot awareness)
     const generatedPhotosRaw = await Promise.all(
-      Array.from({ length: count }, async (_, index) => {
+      prompts.map(async (promptText) => {
+        const system = `You are a dating profile photo generator. 
+Attached are some photos of the user.
+Rules: 
+${rules}`  
+        const text = await generatePhotoPrompt(files, promptText);
         const result = await generateText({
           model,
+          system,
           prompt: [{
             role: "user",
             content: [
-              { type: "text", text: prompts[index] },
-              ...files
+              ...files,
+              { type: "text", text: JSON.stringify(text, null, 2) },
             ]
           }],
           providerOptions: {
@@ -265,14 +259,19 @@ export async function generatePreviewPhotos(
       }
     }
 
-    // Get the uploaded images, count, and prompt from formData
+    // Get the uploaded images and prompts from formData
     const images = formData.getAll("images") as File[];
+    const promptsJson = formData.get("prompts") as string;
+    const prompts: string[] = promptsJson ? JSON.parse(promptsJson) : [];
 
-    // Hardcoded prompts for preview photos - varied scenarios for dating profile
-    const previewPrompts = [
+    // Default prompts for preview photos if user didn't provide any
+    const defaultPrompts = [
       "A warm, genuine smile in natural outdoor lighting, looking directly at the camera with confident eye contact",
       "An active outdoor photo showing personality - hiking, at the beach, or in a park with natural scenery",
       "A stylish, well-dressed photo at a social setting like a rooftop bar or restaurant, looking confident and fun",
+      "A candid moment showing hobbies or interests in a natural setting",
+      "A fun, playful photo that shows personality and sense of humor",
+      "A well-lit portrait with a warm, approachable expression",
     ];
 
     const files = await Promise.all(
@@ -280,8 +279,10 @@ export async function generatePreviewPhotos(
     );
 
     // Generate preview photos with fast model - returns blurred base64
-    const generatedPhotos = await Promise.all(previewPrompts.map(async (promptText, index) => {
-        // Always use the hardcoded prompts for variety (ignore userPrompt for previews)
+    const generatedPhotos = await Promise.all(prompts.map(async (userPrompt, index) => {
+        // Use user's prompt or fall back to default
+        const promptText = userPrompt?.trim() || defaultPrompts[index % defaultPrompts.length];
+        
         const result = await generateImage({
           model: previewModel,
           prompt: {
@@ -336,4 +337,38 @@ async function compressImage(buffer: Buffer, mediaType: string): Promise<Buffer>
     // For JPEG and others, use high quality (near-lossless)
     return image.jpeg({ quality: 95, mozjpeg: true }).toBuffer();
   }
+}
+
+const generatePhotoPrompt = async (files: FilePart[], promptText: string) => {
+  const prompt = `You are a dating profile photo prompt generator. 
+Your role is to output JSON that will be provided to a photo generation model.
+Here are some examples of how to format a prompt into JSON:
+
+${examples.map((example) => `
+Example: ${JSON.stringify(example)}
+`).join("\n")}
+
+The JSON should aim to try and make a photo that is realistic for dating.
+This doesn't mean it should be professional-photographer style, it means it should look like it was shot on an iPhone.
+
+Rules:
+${rules}
+
+Make sure to follow the rules, examples, and the user's prompt. `
+  const json = await generateText({
+    model: google("gemini-2.5-flash"),
+    system: prompt,
+    prompt: [{
+      role: "user",
+      content: [
+        ...files,
+        { type: "text", text: `User's Prompt: ${promptText}` },
+      ]
+    }],
+    output: Output.json({
+      name: "photo_prompt",
+      description: "A JSON object that will be provided to a photo generation model.",
+    })
+  });
+  return json.output;
 }

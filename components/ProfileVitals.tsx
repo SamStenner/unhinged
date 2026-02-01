@@ -231,7 +231,7 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
           </>
         }
       >
-        <div className="pb-4">
+        <div className="px-4 md:px-0 pb-4">
           <Input
             type="text"
             placeholder="Your name"
@@ -257,7 +257,7 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
           </Button>
         }
       >
-        <div className="pb-4">
+        <div className="px-4 md:px-0 pb-4">
           <RadioGroup
             value={profile.gender || ""}
             onValueChange={(value) => {
@@ -308,7 +308,7 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
           </>
         }
       >
-        <div className="pb-4">
+        <div className="px-4 md:px-0 pb-4">
           <p className="text-[14px] text-gray-500 mb-4">Enter your birthday to calculate your age</p>
           <div>
             <Label className="text-[12px] text-gray-500 mb-1">Date of birth</Label>
@@ -344,30 +344,32 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
           </Button>
         }
       >
-        <div className="py-2 max-h-[50vh] hide-scrollbar overflow-y-auto border rounded-xl px-2">
-          <RadioGroup
-            value={profile.height || ""}
-            onValueChange={(value) => {
-              handleHeightSelect(value);
-              setEditingField(null);
-            }}
-            className="space-y-0 gap-1"
-          >
-            {heightOptions.map((height) => (
-              <Label
-                key={height}
-                className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${profile.height === height
-                  ? "bg-[#67295F]/10 text-[#67295F]"
-                  : "hover:bg-gray-50 text-gray-700"
-                  }`}
-              >
-                <RadioGroupItem value={height} className="sr-only" />
-                <span className={`text-[16px] ${profile.height === height ? "font-semibold" : ""}`}>
-                  {height}
-                </span>
-              </Label>
-            ))}
-          </RadioGroup>
+        <div className="px-4 md:px-0 ">
+          <div className="py-2 max-h-[50vh] hide-scrollbar overflow-y-auto border rounded-xl px-2">
+            <RadioGroup
+              value={profile.height || ""}
+              onValueChange={(value) => {
+                handleHeightSelect(value);
+                setEditingField(null);
+              }}
+              className="space-y-0 gap-1"
+            >
+              {heightOptions.map((height) => (
+                <Label
+                  key={height}
+                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${profile.height === height
+                    ? "bg-[#67295F]/10 text-[#67295F]"
+                    : "hover:bg-gray-50 text-gray-700"
+                    }`}
+                >
+                  <RadioGroupItem value={height} className="sr-only" />
+                  <span className={`text-[16px] ${profile.height === height ? "font-semibold" : ""}`}>
+                    {height}
+                  </span>
+                </Label>
+              ))}
+            </RadioGroup>
+          </div>
         </div>
       </ResponsiveModal>
 
@@ -390,7 +392,7 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
           </>
         }
       >
-        <div className="pb-4">
+        <div className="px-4 md:px-0 pb-4">
           <Input
             type="text"
             placeholder="City, State"

@@ -144,7 +144,7 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
 
         // Only generate if user has NO existing photos
         if (photosCount === 0) {
-          handleGenerateRealPhotos(params.images, params.count, params.prompt);
+          handleGenerateRealPhotos(params.images, params.count, params.prompts);
         }
         // If user already has photos, we just show them (no generation needed)
       };
@@ -156,7 +156,7 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
   }, [user, clearPreviewPhotos, refreshFromDatabase, setPendingGenerationParams]);
 
   // Helper function for generating real photos after signup
-  const handleGenerateRealPhotos = async (images: File[], count: number, prompt: string) => {
+  const handleGenerateRealPhotos = async (images: File[], count: number, prompts: string[]) => {
     setIsGenerating(true);
     setGenerationError(null);
 
@@ -170,7 +170,7 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
         formData.append("images", image);
       });
       formData.append("count", String(count));
-      formData.append("prompt", prompt);
+      formData.append("prompts", JSON.stringify(prompts));
 
       const result = await generatePhotos(formData);
 
@@ -217,7 +217,7 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
     (slot) => !photos.find((p) => p.slot === slot)
   ).length;
 
-  const handleGenerateAIPhotos = async (images: File[], count: number, prompt: string) => {
+  const handleGenerateAIPhotos = async (images: File[], count: number, prompts: string[]) => {
     setIsGenerating(true);
     setGenerationError(null);
 
@@ -232,7 +232,7 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
         formData.append("images", image);
       });
       formData.append("count", String(count));
-      formData.append("prompt", prompt);
+      formData.append("prompts", JSON.stringify(prompts));
 
       if (user) {
         // Authenticated user - generate real photos
@@ -251,7 +251,7 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
       } else {
         // Unauthenticated user - generate preview photos with fast model
         // Store the original images for replay after signup
-        setPendingGenerationParams({ images, count, prompt });
+        setPendingGenerationParams({ images, count, prompts });
 
         // Always generate 6 preview images to show full potential
         const previewFormData = new FormData();
@@ -259,7 +259,7 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
           previewFormData.append("images", image);
         });
         previewFormData.append("count", "6");
-        previewFormData.append("prompt", prompt);
+        previewFormData.append("prompts", JSON.stringify(prompts));
 
         const result = await generatePreviewPhotos(previewFormData);
 

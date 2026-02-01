@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { useIsMobile } from "@/lib/is-mobile";
 import { useAuth } from "@/lib/auth-context";
 import { useProfile } from "@/lib/profile-context";
@@ -29,10 +30,15 @@ import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 
 interface AIPhotoUploadProps {
-  onGenerate: (images: File[], count: number, prompt: string) => void;
+  onGenerate: (images: File[], count: number, prompts: string[]) => void;
   isGenerating?: boolean;
   emptySlotCount?: number;
   balance?: number;
+}
+
+interface FormValues {
+  photoCount: number;
+  prompts: { value: string }[];
 }
 
 export default function AIPhotoUpload({
@@ -43,11 +49,34 @@ export default function AIPhotoUpload({
 }: AIPhotoUploadProps) {
   const isMobile = useIsMobile();
   const { user } = useAuth();
-  const { uploadedImages, addUploadedImage, removeUploadedImage } = useProfile();
-  const [isOpen, setIsOpen] = useState(false);
-  const [prompt, setPrompt] = useState("");
-  const [photoCount, setPhotoCount] = useState(Math.min(3, 6));
+  const { uploadedImages, addUploadedImage, removeUploadedImage, clearUploadedImages } = useProfile();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Dialog/drawer open state
+  const [isOpen, setIsOpen] = useState(false);
+  // Step 0 = upload step, steps 1-N = prompt for each photo
+  const [step, setStep] = useState(0);
+
+  const { control, watch, reset, handleSubmit } = useForm<FormValues>({
+    defaultValues: {
+      photoCount: 3,
+      prompts: [],
+    },
+  });
+
+  const { fields, replace } = useFieldArray({
+    control,
+    name: "prompts",
+  });
+
+  const photoCount = watch("photoCount");
+  const isLastStep = step === photoCount;
+  const currentPromptIndex = step - 1;
+
+  const resetForm = () => {
+    setStep(0);
+    reset({ photoCount: 3, prompts: [] });
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -68,26 +97,54 @@ export default function AIPhotoUpload({
     removeUploadedImage(id);
   };
 
-  const handleGenerate = () => {
-    if (uploadedImages.length === 0) return;
+  const handleContinue = () => {
+    if (step === 0) {
+      // Initialize prompts array for each photo
+      replace(Array(photoCount).fill({ value: "" }));
+      setStep(1);
+    } else if (step < photoCount) {
+      setStep(step + 1);
+    }
+  };
 
-    // Always call onGenerate - EditView will handle auth check and preview vs real generation
-    onGenerate(uploadedImages.map((img) => img.file), photoCount, prompt);
-    setIsOpen(false);
+  const handleBack = () => {
+    if (step > 1) {
+      setStep(step - 1);
+    } else if (step === 1) {
+      // Go back to upload step
+      setStep(0);
+      replace([]);
+    }
   };
 
   const handleOpenChange = (open: boolean) => {
     if (isGenerating && open) return;
     setIsOpen(open);
+    if (!open) {
+      // Reset form state when closing
+      resetForm();
+    }
   };
 
   const handleAddClick = () => {
     fileInputRef.current?.click();
   };
 
+  const onSubmit = (data: FormValues) => {
+    if (uploadedImages.length === 0) return;
+
+    // Call onGenerate with prompts array
+    const prompts = data.prompts.map((p) => p.value);
+    onGenerate(uploadedImages.map((img) => img.file), data.photoCount, prompts);
+    
+    // Close dialog and reset form state (keep uploaded photos for next generation)
+    setIsOpen(false);
+    resetForm();
+  };
+
   const petalCost = photoCount * 10;
   const insufficientBalance = user ? balance < petalCost : false;
-  const photoCountLabel = `Generate ${photoCount} photo${photoCount !== 1 ? "s" : ""}`;
+  const photoCountLabel = `${photoCount} photo${photoCount !== 1 ? "s" : ""}`;
 
   const triggerButton = (
     <button
@@ -116,7 +173,7 @@ export default function AIPhotoUpload({
     </button>
   );
 
-  // Shared content - responsive via Tailwind
+  // Step 0: Upload content with photo grid and slider
   const uploadContent = (
     <div className="space-y-4 sm:space-y-5">
       <input
@@ -181,65 +238,153 @@ export default function AIPhotoUpload({
         </AnimatePresence>
       </div>
 
-      {/* Prompt input */}
-      <div>
-        <Label className="hidden sm:block text-sm text-gray-700 mb-2">
-          Style description (optional)
-        </Label>
-        <Textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Describe the style of photos you want (optional)..."
-          className="rounded-xl bg-gray-50 text-[14px] resize-none focus-visible:ring-[#67295F] focus-visible:border-[#67295F] shadow-none"
-          rows={isMobile ? 3 : 2}
-        />
-      </div>
-
-      {/* Photo count slider - only show when signed in */}
-      {user && (
-        <div className="pt-2 sm:pt-0">
-          <div className="flex items-center justify-between mb-3">
-            <Label className="text-sm text-gray-700">
-              {photoCountLabel}
-            </Label>
+      {/* Photo count slider - always visible */}
+      <div className="pt-2 sm:pt-0">
+        <div className="flex items-center justify-between mb-3">
+          <Label className="text-sm text-gray-700">
+            Generate {photoCountLabel}
+          </Label>
+          {user && (
             <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-[#67295F]/10 to-[#67295F]/5 rounded-full">
               <span className="text-xs">🌸</span>
               <span className="text-sm font-semibold text-[#67295F]">{petalCost}</span>
             </div>
-          </div>
-          <div className="relative">
-            <Slider
-              min={1}
-              max={6}
-              step={1}
-              value={[photoCount]}
-              onValueChange={(value) => setPhotoCount(value[0])}
-              className="w-full [&_[data-slot=slider-track]]:h-2 [&_[data-slot=slider-range]]:bg-[#67295F] [&_[data-slot=slider-thumb]]:border-[#67295F] [&_[data-slot=slider-thumb]]:size-5"
-            />
-            <div className="flex justify-between mt-2 px-0.5">
-              {[1, 2, 3, 4, 5, 6].map((n) => (
-                <span
-                  key={n}
-                  className={`text-xs ${photoCount === n ? "text-[#67295F] font-semibold" : "text-gray-400"}`}
-                >
-                  {n}
-                </span>
-              ))}
-            </div>
+          )}
+        </div>
+        <div className="relative">
+          <Controller
+            name="photoCount"
+            control={control}
+            render={({ field }) => (
+              <Slider
+                min={1}
+                max={6}
+                step={1}
+                value={[field.value]}
+                onValueChange={(value) => field.onChange(value[0])}
+                className="w-full [&_[data-slot=slider-track]]:h-2 [&_[data-slot=slider-range]]:bg-[#67295F] [&_[data-slot=slider-thumb]]:border-[#67295F] [&_[data-slot=slider-thumb]]:size-5"
+              />
+            )}
+          />
+          <div className="flex justify-between mt-2 px-0.5">
+            {[1, 2, 3, 4, 5, 6].map((n) => (
+              <span
+                key={n}
+                className={`text-xs ${photoCount === n ? "text-[#67295F] font-semibold" : "text-gray-400"}`}
+              >
+                {n}
+              </span>
+            ))}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 
-  const isButtonDisabled = uploadedImages.length === 0 || isGenerating || insufficientBalance;
+  // Steps 1-N: Prompt input for each photo
+  const promptContent = (
+    <div className="space-y-4 sm:space-y-5">
+      {/* Progress indicator */}
+      <div className="flex items-center justify-center gap-1.5">
+        {Array.from({ length: photoCount }, (_, i) => (
+          <div
+            key={i}
+            className={`h-1.5 rounded-full transition-all ${
+              i + 1 === step
+                ? "w-6 bg-[#67295F]"
+                : i + 1 < step
+                ? "w-1.5 bg-[#67295F]/40"
+                : "w-1.5 bg-gray-200"
+            }`}
+          />
+        ))}
+      </div>
 
+      {/* Photo number indicator */}
+      <div className="text-center">
+        <span className="text-sm text-gray-500">
+          Describe photo {step} of {photoCount}
+        </span>
+      </div>
+
+      {/* Prompt input */}
+      <div>
+        <Label className="hidden sm:block text-sm text-gray-700 mb-2">
+          Photo description (optional)
+        </Label>
+        {currentPromptIndex >= 0 && currentPromptIndex < fields.length && (
+          <Controller
+            key={currentPromptIndex}
+            name={`prompts.${currentPromptIndex}.value`}
+            control={control}
+            render={({ field }) => (
+              <Textarea
+                {...field}
+                placeholder="Describe what you want for this photo..."
+                className="rounded-xl bg-gray-50 text-[14px] resize-none focus-visible:ring-[#67295F] focus-visible:border-[#67295F] shadow-none"
+                rows={isMobile ? 4 : 3}
+                autoFocus
+              />
+            )}
+          />
+        )}
+        <p className="text-xs text-gray-400 mt-2">
+          e.g., "Outdoor hiking photo with natural lighting" or "Professional headshot with a smile"
+        </p>
+      </div>
+    </div>
+  );
+
+  const isContinueDisabled = uploadedImages.length === 0 || isGenerating;
+  const isGenerateDisabled = uploadedImages.length === 0 || isGenerating || insufficientBalance;
+
+  // Continue button for step 0
+  const continueButton = (
+    <button
+      key="continue-btn"
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        handleContinue();
+      }}
+      disabled={isContinueDisabled}
+      className={`w-full sm:flex-1 py-3 rounded-xl font-semibold text-[15px] transition-all flex items-center justify-center gap-2 ${isContinueDisabled
+        ? "bg-gray-200 text-gray-400 cursor-not-allowed"
+        : "bg-gradient-to-r from-[#67295F] to-[#8B3A7F] text-white hover:from-[#5a2352] hover:to-[#7a3370]"
+        }`}
+    >
+      Continue
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="9 18 15 12 9 6" />
+      </svg>
+    </button>
+  );
+
+  // Next button for prompt steps (not last)
+  const nextButton = (
+    <button
+      key="next-btn"
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        handleContinue();
+      }}
+      className="w-full sm:flex-1 py-3 rounded-xl font-semibold text-[15px] transition-all flex items-center justify-center gap-2 bg-gradient-to-r from-[#67295F] to-[#8B3A7F] text-white hover:from-[#5a2352] hover:to-[#7a3370]"
+    >
+      Next
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="9 18 15 12 9 6" />
+      </svg>
+    </button>
+  );
+
+  // Generate button for last step
   const generateButton = (
     <button
-      type="button"
-      onClick={handleGenerate}
-      disabled={isButtonDisabled}
-      className={`w-full sm:flex-1 py-3 rounded-xl font-semibold text-[15px] transition-all flex items-center justify-center gap-2 ${isButtonDisabled
+      key="generate-btn"
+      type="submit"
+      disabled={isGenerateDisabled}
+      className={`w-full sm:flex-1 py-3 rounded-xl font-semibold text-[15px] transition-all flex items-center justify-center gap-2 ${isGenerateDisabled
         ? "bg-gray-200 text-gray-400 cursor-not-allowed"
         : "bg-gradient-to-r from-[#67295F] to-[#8B3A7F] text-white hover:from-[#5a2352] hover:to-[#7a3370]"
         }`}
@@ -262,14 +407,33 @@ export default function AIPhotoUpload({
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
           </svg>
-          {user ? photoCountLabel : "Generate photos"}
+          Generate {photoCountLabel}
         </>
       )}
     </button>
   );
 
+  // Back button for prompt steps
+  const backButton = (
+    <button
+      key="back-btn"
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        handleBack();
+      }}
+      className="w-full sm:flex-1 py-3 rounded-xl font-medium text-[15px] text-gray-500 sm:text-gray-600 hover:bg-gray-100 sm:hover:bg-gray-50 transition-colors sm:border sm:border-gray-200 flex items-center justify-center gap-2"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="15 18 9 12 15 6" />
+      </svg>
+      Back
+    </button>
+  );
+
   const cancelButton = (
     <button
+      key="cancel-btn"
       type="button"
       className="w-full sm:flex-1 py-3 rounded-xl font-medium text-[15px] text-gray-500 sm:text-gray-600 hover:bg-gray-100 sm:hover:bg-gray-50 transition-colors sm:border sm:border-gray-200"
     >
@@ -277,22 +441,46 @@ export default function AIPhotoUpload({
     </button>
   );
 
+  // Determine which content and buttons to show
+  const isInPromptStep = step > 0;
+  const currentContent = !isInPromptStep ? uploadContent : promptContent;
+  const currentTitle = !isInPromptStep ? "Upload Photos" : `Photo ${step} Description`;
+  const currentSubtitle = !isInPromptStep
+    ? "Add your photos to generate profile pictures"
+    : "Describe the style you want for this photo";
+
+  // Determine primary action button
+  const primaryButton = !isInPromptStep
+    ? continueButton
+    : isLastStep
+    ? generateButton
+    : nextButton;
+
+  // Determine secondary button
+  const secondaryButton = !isInPromptStep ? cancelButton : backButton;
+
   if (!isMobile) {
     return (
       <Dialog open={isOpen} onOpenChange={handleOpenChange}>
         <DialogTrigger asChild>{triggerButton}</DialogTrigger>
         <DialogContent className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl">Upload Photos</DialogTitle>
-            <p className="text-sm text-gray-500 mt-1">
-              Add your photos to generate profile pictures
-            </p>
-          </DialogHeader>
-          <div className="py-2">{uploadContent}</div>
-          <DialogFooter className="flex-row gap-3 sm:flex-row pt-2">
-            <DialogClose asChild>{cancelButton}</DialogClose>
-            {generateButton}
-          </DialogFooter>
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <DialogHeader>
+              <DialogTitle className="text-xl">{currentTitle}</DialogTitle>
+              <p className="text-sm text-gray-500 mt-1">
+                {currentSubtitle}
+              </p>
+            </DialogHeader>
+            <div className="py-2">{currentContent}</div>
+            <DialogFooter className="flex-row gap-3 sm:flex-row pt-2">
+              {!isInPromptStep ? (
+                <DialogClose asChild>{secondaryButton}</DialogClose>
+              ) : (
+                secondaryButton
+              )}
+              {primaryButton}
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     );
@@ -302,14 +490,20 @@ export default function AIPhotoUpload({
     <Drawer open={isOpen} onOpenChange={handleOpenChange}>
       <DrawerTrigger asChild>{triggerButton}</DrawerTrigger>
       <DrawerContent>
-        <DrawerHeader>
-          <DrawerTitle>Upload Photos</DrawerTitle>
-        </DrawerHeader>
-        <div className="pb-4 px-4">{uploadContent}</div>
-        <DrawerFooter>
-          {generateButton}
-          <DrawerClose asChild>{cancelButton}</DrawerClose>
-        </DrawerFooter>
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <DrawerHeader>
+            <DrawerTitle>{currentTitle}</DrawerTitle>
+          </DrawerHeader>
+          <div className="pb-4 px-4">{currentContent}</div>
+          <DrawerFooter>
+            {primaryButton}
+            {!isInPromptStep ? (
+              <DrawerClose asChild>{secondaryButton}</DrawerClose>
+            ) : (
+              secondaryButton
+            )}
+          </DrawerFooter>
+        </form>
       </DrawerContent>
     </Drawer>
   );

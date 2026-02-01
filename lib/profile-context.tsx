@@ -43,7 +43,7 @@ export interface PreviewPhoto {
 export interface PendingGenerationParams {
   images: File[];
   count: number;
-  prompt: string;
+  prompts: string[];
 }
 
 interface ProfileContextType {
