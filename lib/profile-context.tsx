@@ -68,6 +68,12 @@ interface ProfileContextType {
   pendingGenerationParams: PendingGenerationParams | null;
   setPendingGenerationParams: (params: PendingGenerationParams | null) => void;
 
+  // Generation state (hoisted to survive layout changes)
+  isGenerating: boolean;
+  setIsGenerating: (value: boolean) => void;
+  generationError: string | null;
+  setGenerationError: (error: string | null) => void;
+
   // Profile actions
   updateProfile: (updates: Partial<Profile>) => void;
 
@@ -77,6 +83,7 @@ interface ProfileContextType {
   removePhoto: (id: string) => void;
   swapPhotoSlots: (slotA: number, slotB: number) => void;
   getPhotoBySlot: (slot: number) => Photo | undefined;
+  setPhotoToSlot: (photoId: string, url: string, mediaType: string, targetSlot?: number) => Promise<boolean>;
 
   // Prompt actions
   addPrompt: (prompt: Omit<Prompt, "id" | "order">) => void;
@@ -102,6 +109,8 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
   const [uploadedImages, setUploadedImages] = useState<UploadedImage[]>([]);
   const [previewPhotos, setPreviewPhotosState] = useState<PreviewPhoto[]>([]);
   const [pendingGenerationParams, setPendingGenerationParamsState] = useState<PendingGenerationParams | null>(null);
+  const [isGenerating, setIsGeneratingState] = useState(false);
+  const [generationError, setGenerationErrorState] = useState<string | null>(null);
   const prevUserRef = useRef<typeof user>(undefined);
 
   // Load profile from database or localStorage
@@ -201,6 +210,15 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
     setPendingGenerationParamsState(params);
   }, []);
 
+  // Generation state actions
+  const setIsGenerating = useCallback((value: boolean) => {
+    setIsGeneratingState(value);
+  }, []);
+
+  const setGenerationError = useCallback((error: string | null) => {
+    setGenerationErrorState(error);
+  }, []);
+
   // Detect sign out and reset state
   useEffect(() => {
     // If user was previously signed in and is now signed out
@@ -263,13 +281,13 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
           height?: string | null;
           location?: string | null;
         } = {};
-        
+
         if ('name' in updates) dbUpdates.name = updates.name ?? null;
         if ('age' in updates) dbUpdates.age = updates.age ?? null;
         if ('gender' in updates) dbUpdates.gender = updates.gender ?? null;
         if ('height' in updates) dbUpdates.height = updates.height ?? null;
         if ('location' in updates) dbUpdates.location = updates.location ?? null;
-        
+
         await updateUserProfile(user.id, dbUpdates);
       }
     },
@@ -325,19 +343,25 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
   const removePhoto = useCallback(
     async (id: string) => {
-      const photoToRemove = data.photos.find((p) => p.id === id);
+      let slotToRemove: number | null = null;
 
-      setData((prev) => ({
-        ...prev,
-        photos: prev.photos.filter((p) => p.id !== id),
-      }));
+      setData((prev) => {
+        const photo = prev.photos.find((p) => p.id === id);
+        if (photo) {
+          slotToRemove = photo.slot;
+        }
+        return {
+          ...prev,
+          photos: prev.photos.filter((p) => p.id !== id),
+        };
+      });
 
       // If authenticated, remove from database slot
-      if (user && photoToRemove) {
-        await removePhotoFromSlot(user.id, photoToRemove.slot);
+      if (user && slotToRemove !== null) {
+        await removePhotoFromSlot(user.id, slotToRemove);
       }
     },
-    [user, data.photos]
+    [user]
   );
 
   const swapPhotoSlots = useCallback(
@@ -369,6 +393,61 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
       return data.photos.find((p) => p.slot === slot);
     },
     [data.photos]
+  );
+
+  // Set an existing generated photo to a specific slot or next available slot
+  const setPhotoToSlotFn = useCallback(
+    async (photoId: string, url: string, mediaType: string, targetSlot?: number): Promise<boolean> => {
+      if (!user) return false;
+
+      let slotAssigned: number | null = null;
+
+      setData((prev) => {
+        // Check if photo already exists in grid
+        if (prev.photos.some((p) => p.id === photoId)) {
+          return prev; // No change - photo already in grid
+        }
+
+        // Determine slot to use
+        let slotToUse: number | undefined;
+        if (targetSlot !== undefined) {
+          // Use specific target slot - replace any existing photo in that slot
+          slotToUse = targetSlot;
+        } else {
+          // Find first empty slot
+          const usedSlots = new Set(prev.photos.map((p) => p.slot));
+          slotToUse = [0, 1, 2, 3, 4, 5].find((s) => !usedSlots.has(s));
+        }
+
+        if (slotToUse === undefined) {
+          return prev; // No empty slots
+        }
+
+        slotAssigned = slotToUse;
+        // Remove any existing photo in the target slot and add the new one
+        const filteredPhotos = prev.photos.filter((p) => p.slot !== slotToUse);
+        return {
+          ...prev,
+          photos: [
+            ...filteredPhotos,
+            {
+              id: photoId,
+              src: url,
+              alt: "Profile photo",
+              slot: slotToUse,
+            },
+          ],
+        };
+      });
+
+      // Update database if slot was assigned
+      if (slotAssigned !== null) {
+        await setPhotoSlot(user.id, photoId, slotAssigned);
+        return true;
+      }
+      return false;
+    },
+    [user]
   );
 
   // Prompt actions
@@ -499,12 +578,17 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
         clearPreviewPhotos,
         pendingGenerationParams,
         setPendingGenerationParams,
+        isGenerating,
+        setIsGenerating,
+        generationError,
+        setGenerationError,
         updateProfile,
         addPhotoToSlot,
         addPhotosToSlots,
         removePhoto,
         swapPhotoSlots,
         getPhotoBySlot,
+        setPhotoToSlot: setPhotoToSlotFn,
         addPrompt,
         removePrompt,
         updatePrompt: updatePromptFn,

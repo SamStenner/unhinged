@@ -18,6 +18,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useState, useEffect, useRef } from "react";
+import { Lock } from "lucide-react";
 import type { Photo } from "@/lib/types";
 
 interface PhotoGridProps {
@@ -109,6 +110,13 @@ function SortablePhotoTile({
           </svg>
         </button>
       )}
+      {isBlurred && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center">
+            <Lock className="w-4 h-4 text-white" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -187,25 +195,23 @@ function SortableEmptyTile({
       style={style}
       type="button"
       onClick={onClick}
-      className="aspect-square rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center hover:border-gray-400 transition-colors"
+      className="aspect-square rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center hover:border-gray-400 hover:bg-gray-100 transition-colors"
       {...attributes}
       {...listeners}
     >
-      <div className="w-8 h-8 rounded-full bg-[#67295F] flex items-center justify-center">
-        <svg
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="white"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <line x1="12" y1="5" x2="12" y2="19" />
-          <line x1="5" y1="12" x2="19" y2="12" />
-        </svg>
-      </div>
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="#9ca3af"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      >
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
     </button>
   );
 }

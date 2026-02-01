@@ -17,7 +17,7 @@ export const users = pgTable("users", {
   gender: text("gender"),
   height: text("height"),
   location: text("location"),
-  balance: integer("balance").default(100).notNull(),
+  balance: integer("balance").default(60).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -28,7 +28,7 @@ export const generatedPhotos = pgTable("generated_photos", {
   userId: uuid("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
-  url: text("url").notNull(),
+  objectKey: text("object_key").notNull(), // R2 object key (e.g. "photos/{uuid}.jpg")
   mediaType: text("media_type").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

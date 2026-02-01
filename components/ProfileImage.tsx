@@ -2,56 +2,25 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { Download, RefreshCw, type LucideIcon } from "lucide-react";
+import { Download, Lock } from "lucide-react";
 import { useIsMobile } from "@/lib/is-mobile";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-
-interface OverlayButtonProps {
-  icon: LucideIcon;
-  label: string;
-  onClick: (e: React.MouseEvent) => void;
-}
-
-function OverlayButton({ icon: Icon, label, onClick }: OverlayButtonProps) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex flex-col items-center gap-2 p-4 rounded-xl bg-white/20 hover:bg-white/30 transition-colors"
-    >
-      <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center">
-        <Icon className="w-6 h-6 text-gray-800" />
-      </div>
-      <span className="text-white text-sm font-medium">{label}</span>
-    </button>
-  );
-}
 
 interface ProfileImageProps {
   src: string;
   alt: string;
   slot?: number;
-  onRegenerate?: (slot: number) => void;
   isOverlayActive?: boolean;
   onOverlayChange?: (active: boolean) => void;
+  isPreview?: boolean;
 }
 
 export default function ProfileImage({
   src,
   alt,
   slot,
-  onRegenerate,
   isOverlayActive,
   onOverlayChange,
+  isPreview = false,
 }: ProfileImageProps) {
   const isMobile = useIsMobile();
 
@@ -62,8 +31,6 @@ export default function ProfileImage({
 
   // Hover state for desktop
   const [isHovered, setIsHovered] = useState(false);
-
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
   // On mobile, use click to toggle overlay
   // On desktop, use hover
@@ -76,47 +43,27 @@ export default function ProfileImage({
     }
   };
 
-  const handleOverlayClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (e.target === e.currentTarget && isMobile) {
-      setShowOverlay(false);
-    }
-  };
-
   const handleDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();
 
     try {
-      const response = await fetch(src);
+      // Use Next.js image optimization endpoint to avoid CORS issues
+      const imageUrl = `/_next/image?url=${encodeURIComponent(src)}&w=1920&q=100`;
+      const response = await fetch(imageUrl);
       const blob = await response.blob();
-
+      
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
       link.download = `photo-${slot ?? "image"}.jpg`;
-      document.body.appendChild(link);
       link.click();
-      document.body.removeChild(link);
       URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Error downloading image:", error);
+      // Fallback to opening in new tab
+      window.open(src, "_blank");
     }
 
-    if (isMobile) {
-      setShowOverlay(false);
-    }
-  };
-
-  const handleRegenerateClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowConfirmDialog(true);
-  };
-
-  const handleConfirmRegenerate = () => {
-    if (slot !== undefined && onRegenerate) {
-      onRegenerate(slot);
-    }
-    setShowConfirmDialog(false);
     if (isMobile) {
       setShowOverlay(false);
     }
@@ -138,46 +85,33 @@ export default function ProfileImage({
           sizes="(max-width: 430px) 100vw, 430px"
         />
 
-        {/* Scrim overlay with buttons - always rendered for fade animation */}
-        <div
-          className={`absolute inset-0 bg-black/60 flex items-center justify-center gap-4 transition-opacity duration-150 ${isOverlayVisible ? "opacity-100" : "opacity-0 pointer-events-none"
-            }`}
-          onClick={handleOverlayClick}
-        >
-          <OverlayButton
-            icon={Download}
-            label="Download"
+        {/* Download overlay - only show when not in preview mode */}
+        {!isPreview && (
+          <button
+            type="button"
+            className={`absolute inset-0 bg-black/60 flex flex-col items-center justify-center gap-2 transition-opacity duration-150 cursor-pointer ${isOverlayVisible ? "opacity-100" : "opacity-0 pointer-events-none"
+              }`}
             onClick={handleDownload}
-          />
+          >
+            <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center">
+              <Download className="w-6 h-6 text-gray-800" />
+            </div>
+            <span className="text-white text-sm font-medium">Download</span>
+          </button>
+        )}
 
-          {slot !== undefined && onRegenerate && (
-            <OverlayButton
-              icon={RefreshCw}
-              label="Regenerate"
-              onClick={handleRegenerateClick}
-            />
-          )}
-        </div>
+        {/* Locked overlay for preview mode */}
+        {isPreview && (
+          <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center pointer-events-none">
+            <div className="w-14 h-14 rounded-full bg-black/50 flex items-center justify-center mb-3">
+              <Lock className="w-7 h-7 text-white" />
+            </div>
+            <span className="text-white text-sm font-medium text-center px-4">
+              Sign up to unlock your photos
+            </span>
+          </div>
+        )}
       </div>
-
-      {/* Confirmation Dialog */}
-      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <AlertDialogContent className="mx-4 max-w-[calc(100%-2rem)] rounded-xl">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Regenerate this photo?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will replace the current photo with a new AI-generated one.
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmRegenerate}>
-              Regenerate
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

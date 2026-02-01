@@ -31,7 +31,7 @@ const petalPackages = [
   {
     id: "starter",
     petals: 50,
-    price: "$4.99",
+    price: "$9.99",
     icon: SparklesIcon,
     popular: false,
     color: "from-pink-400 to-pink-500",
@@ -39,7 +39,7 @@ const petalPackages = [
   {
     id: "popular",
     petals: 150,
-    price: "$9.99",
+    price: "$19.99",
     icon: FlameIcon,
     popular: true,
     color: "from-[#67295F] to-[#8B3D7F]",
@@ -48,7 +48,7 @@ const petalPackages = [
   {
     id: "premium",
     petals: 400,
-    price: "$19.99",
+    price: "$39.99",
     icon: CrownIcon,
     popular: false,
     color: "from-amber-400 to-amber-500",

@@ -22,6 +22,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog";
+import { Separator } from "./ui/separator";
 
 interface ResponsiveModalProps {
   open: boolean;
@@ -89,21 +90,23 @@ interface VitalRowProps {
 
 function VitalRow({ label, value, onClick, isLast = false }: VitalRowProps) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full py-4 flex items-center justify-between hover:bg-gray-50 transition-colors ${!isLast ? "border-b border-gray-100" : ""
+    <div>
+      <button
+        type="button"
+        onClick={onClick}
+        className={`w-full py-2 rounded-lg flex items-center justify-between hover:bg-gray-50 transition-colors
         }`}
-    >
-      <div className="text-left">
-        <p className="text-[15px] font-semibold text-gray-900">{label}</p>
-        <p className="text-[14px] text-gray-500">{value || "Not set"}</p>
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-[13px] text-gray-400">Always Visible</span>
-        <ChevronRightIcon className="w-5 h-5 text-gray-300" />
-      </div>
-    </button>
+      >
+        <div className="text-left">
+          <p className="text-[15px] font-semibold text-gray-900">{label}</p>
+          <p className="text-[14px] text-gray-500">{value || "Not set"}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] text-gray-400">Always Visible</span>
+          <ChevronRightIcon className="w-5 h-5 text-gray-300" />
+        </div>
+      </button>
+    </div>
   );
 }
 
@@ -124,7 +127,7 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
     }
 
     const date = new Date(value);
-    
+
     if (isNaN(date.getTime())) {
       setBirthdayError("Please enter a valid date");
       return;
@@ -132,12 +135,12 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
 
     const year = date.getFullYear();
     const today = new Date();
-    
+
     if (year < 1900) {
       setBirthdayError("Year must be 1900 or later");
       return;
     }
-    
+
     if (date > today) {
       setBirthdayError("Birthday cannot be in the future");
       return;
@@ -175,27 +178,31 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
         <h3 className="text-[13px] font-medium text-gray-400 uppercase tracking-wide mb-2">
           My Vitals
         </h3>
-        <div className="bg-white">
+        <div className="bg-white space-y-2">
           <VitalRow
             label="Name"
             value={profile.name}
             onClick={() => setEditingField("name")}
           />
+          <Separator />
           <VitalRow
             label="Gender"
             value={profile.gender}
             onClick={() => setEditingField("gender")}
           />
+          <Separator />
           <VitalRow
             label="Age"
             value={profile.age}
             onClick={() => setEditingField("age")}
           />
+          <Separator />
           <VitalRow
             label="Height"
             value={profile.height}
             onClick={() => setEditingField("height")}
           />
+          <Separator />
           <VitalRow
             label="Location"
             value={profile.location}
@@ -224,7 +231,7 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
           </>
         }
       >
-        <div className="px-4 pb-4">
+        <div className="pb-4">
           <Input
             type="text"
             placeholder="Your name"
@@ -250,14 +257,14 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
           </Button>
         }
       >
-        <div className="px-4 pb-4">
+        <div className="pb-4">
           <RadioGroup
             value={profile.gender || ""}
             onValueChange={(value) => {
               handleGenderSelect(value);
               setEditingField(null);
             }}
-            className="space-y-2"
+            className="space-y-0"
           >
             {genderOptions.map((gender) => (
               <Label
@@ -301,7 +308,7 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
           </>
         }
       >
-        <div className="px-4 pb-4">
+        <div className="pb-4">
           <p className="text-[14px] text-gray-500 mb-4">Enter your birthday to calculate your age</p>
           <div>
             <Label className="text-[12px] text-gray-500 mb-1">Date of birth</Label>
@@ -337,14 +344,14 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
           </Button>
         }
       >
-        <div className="px-4 pb-4 max-h-[50vh] overflow-y-auto">
+        <div className="py-2 max-h-[50vh] hide-scrollbar overflow-y-auto border rounded-xl px-2">
           <RadioGroup
             value={profile.height || ""}
             onValueChange={(value) => {
               handleHeightSelect(value);
               setEditingField(null);
             }}
-            className="space-y-1"
+            className="space-y-0 gap-1"
           >
             {heightOptions.map((height) => (
               <Label
@@ -383,7 +390,7 @@ export default function ProfileVitals({ className, ...props }: ProfileVitalsProp
           </>
         }
       >
-        <div className="px-4 pb-4">
+        <div className="pb-4">
           <Input
             type="text"
             placeholder="City, State"

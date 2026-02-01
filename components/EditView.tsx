@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useProfile } from "@/lib/profile-context";
 import { useAuth } from "@/lib/auth-context";
 import { availablePrompts } from "@/lib/mock-data";
@@ -23,6 +24,9 @@ import {
   AlertDialogTrigger,
 } from "./ui/alert-dialog";
 import { cn } from "@/lib/utils";
+import { Badge } from "./ui/badge";
+import AllPhotosDrawer from "./AllPhotosDrawer";
+import { PlusIcon } from "lucide-react";
 
 interface EditViewProps extends React.HTMLAttributes<HTMLDivElement> {
   onDragStart?: () => void;
@@ -80,6 +84,7 @@ async function compressImage(file: File, maxSize = 1024, quality = 0.8): Promise
 }
 
 export default function EditView({ onDragStart, onDragEnd, className, ...props }: EditViewProps) {
+  const queryClient = useQueryClient();
   const { user, signOut, openAuthModal } = useAuth();
   const {
     photos,
@@ -96,12 +101,17 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
     clearPreviewPhotos,
     pendingGenerationParams,
     setPendingGenerationParams,
+    isGenerating,
+    setIsGenerating,
+    generationError,
+    setGenerationError,
   } = useProfile();
 
   const prevUserRef = useRef<typeof user>(undefined);
 
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [allPhotosOpen, setAllPhotosOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState<"view" | "select">("view");
+  const [targetSlot, setTargetSlot] = useState<number | undefined>(undefined);
   const [showPrompts, setShowPrompts] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("showPrompts") === "true";
@@ -171,6 +181,8 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
       }
 
       await refreshFromDatabase();
+      // Invalidate the generated photos cache so new photos appear in the drawer
+      queryClient.invalidateQueries({ queryKey: ["generated-photos"] });
     } catch (error) {
       console.error("Error generating photos:", error);
       setGenerationError(
@@ -186,7 +198,15 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
   };
 
   const handleAddPhoto = (slot: number) => {
-    // For now, clicking empty slots does nothing - photos come from AI generation
+    setDrawerMode("select");
+    setTargetSlot(slot);
+    setAllPhotosOpen(true);
+  };
+
+  const handleViewAllPhotos = () => {
+    setDrawerMode("view");
+    setTargetSlot(undefined);
+    setAllPhotosOpen(true);
   };
 
   const handleSwapSlots = (slotA: number, slotB: number) => {
@@ -226,6 +246,8 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
 
         // Refresh from database to get the new photos and updated balance
         await refreshFromDatabase();
+        // Invalidate the generated photos cache so new photos appear in the drawer
+        queryClient.invalidateQueries({ queryKey: ["generated-photos"] });
       } else {
         // Unauthenticated user - generate preview photos with fast model
         // Store the original images for replay after signup
@@ -277,9 +299,32 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
     <div className={cn("hide-scrollbar p-4", className)} {...props} data-vaul-drawer-wrapper="">
       {/* My Photos Section */}
       <div className="">
-        <h2 className="text-[15px] font-medium text-gray-600 mb-3">
-          My Photos
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-[15px] font-medium text-gray-600">
+            My Photos
+          </h2>
+          {user && (
+            <button
+              type="button"
+              onClick={handleViewAllPhotos}
+              className="flex items-center gap-1 text-[13px] font-medium text-[#67295F] hover:text-[#5a2352] transition-colors"
+            >
+              View All
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          )}
+        </div>
         {photos.length > 0 ? (
           // Show real photos for authenticated users
           <div>
@@ -315,7 +360,7 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
             <button
               type="button"
               onClick={() => openAuthModal()}
-              className="w-full mt-4 py-4 px-4 rounded-xl bg-gradient-to-r from-[#67295F] to-[#8B3A7F] text-white font-semibold text-[15px] flex items-center justify-center gap-2 hover:from-[#5a2352] hover:to-[#7a3370] transition-all"
+              className="relative w-full mt-4 py-4 px-4 rounded-xl bg-gradient-to-r from-[#67295F] to-[#8B3A7F] text-white font-semibold text-[15px] flex items-center justify-center gap-2 hover:from-[#5a2352] hover:to-[#7a3370] transition-all"
             >
               <svg
                 width="18"
@@ -330,7 +375,13 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
-              Sign up to unlock images
+              Sign up to unlock your photos
+              <Badge
+                variant="secondary"
+                className="bg-card/20 text-xs text-white absolute right-4"
+              >
+                Free
+              </Badge>
             </button>
           </div>
         ) : isGenerating ? (
@@ -367,7 +418,17 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
             </div>
           </div>
         ) : (
-          <div className="bg-white border border-border rounded-xl py-12 px-6 flex flex-col items-center justify-center text-center">
+          <div className="relative bg-white border border-border rounded-xl py-12 px-6 flex flex-col items-center justify-center text-center">
+            {user && (
+              <button
+                type="button"
+                onClick={() => handleAddPhoto(0)}
+                className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+                aria-label="Add from library"
+              >
+                <PlusIcon className="w-4 h-4 stroke-muted-foreground" />
+              </button>
+            )}
             <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
               <svg
                 width="32"
@@ -474,6 +535,14 @@ export default function EditView({ onDragStart, onDragEnd, className, ...props }
           </AlertDialog>
         </div>
       )}
+
+      {/* All Photos Drawer */}
+      <AllPhotosDrawer
+        open={allPhotosOpen}
+        onOpenChange={setAllPhotosOpen}
+        mode={drawerMode}
+        targetSlot={targetSlot}
+      />
     </div>
   );
 }

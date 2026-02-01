@@ -10,6 +10,8 @@ import {
   type User,
   type GeneratedPhoto,
 } from "@/db";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { getSignedUrl } from "@/lib/r2";
 
 // ============ User Operations ============
 
@@ -111,15 +113,27 @@ export async function deductBalance(
 
 // ============ Full Profile Fetch ============
 
+// Photo with signed URL and slot for profile display
+export interface SlottedPhotoWithSignedUrl {
+  id: string;
+  url: string; // Signed URL
+  mediaType: string;
+  slot: number;
+}
+
+// Photo with signed URL for all generated photos
+export interface GeneratedPhotoWithSignedUrl {
+  id: string;
+  objectKey: string;
+  url: string; // Signed URL
+  mediaType: string;
+  createdAt: Date;
+}
+
 export interface ProfileWithPhotosAndPrompts {
   user: User;
-  photos: Array<{
-    id: string;
-    url: string;
-    mediaType: string;
-    slot: number;
-  }>;
-  allGeneratedPhotos: GeneratedPhoto[];
+  photos: SlottedPhotoWithSignedUrl[];
+  allGeneratedPhotos: GeneratedPhotoWithSignedUrl[];
   prompts: Array<{
     id: string;
     prompt: string;
@@ -150,15 +164,29 @@ export async function getUserProfile(
 
   if (!user) return null;
 
-  return {
-    user,
-    photos: user.photoSlots.map((slot) => ({
+  // Generate signed URLs for slotted photos
+  const photosWithSignedUrls = await Promise.all(
+    user.photoSlots.map(async (slot) => ({
       id: slot.photo.id,
-      url: slot.photo.url,
+      url: await getSignedUrl(slot.photo.objectKey),
       mediaType: slot.photo.mediaType,
       slot: slot.slot,
-    })),
-    allGeneratedPhotos: user.generatedPhotos,
+    }))
+  );
+
+  // Generate signed URLs for all generated photos
+  const allPhotosWithSignedUrls = await Promise.all(
+    user.generatedPhotos.map(async (photo) => ({
+      ...photo,
+      // Add url field with signed URL for compatibility
+      url: await getSignedUrl(photo.objectKey),
+    }))
+  );
+
+  return {
+    user,
+    photos: photosWithSignedUrls,
+    allGeneratedPhotos: allPhotosWithSignedUrls,
     prompts: user.prompts.map((p) => ({
       id: p.id,
       prompt: p.prompt,
@@ -172,7 +200,7 @@ export async function getUserProfile(
 
 export async function addGeneratedPhoto(
   authId: string,
-  url: string,
+  objectKey: string,
   mediaType: string
 ): Promise<GeneratedPhoto | null> {
   const user = await getUserByAuthId(authId);
@@ -182,7 +210,7 @@ export async function addGeneratedPhoto(
     .insert(generatedPhotos)
     .values({
       userId: user.id,
-      url,
+      objectKey,
       mediaType,
     })
     .returning();
@@ -192,7 +220,7 @@ export async function addGeneratedPhoto(
 
 export async function addGeneratedPhotos(
   authId: string,
-  photos: Array<{ url: string; mediaType: string }>
+  photos: Array<{ objectKey: string; mediaType: string }>
 ): Promise<GeneratedPhoto[]> {
   const user = await getUserByAuthId(authId);
   if (!user) return [];
@@ -202,7 +230,7 @@ export async function addGeneratedPhotos(
     .values(
       photos.map((p) => ({
         userId: user.id,
-        url: p.url,
+        objectKey: p.objectKey,
         mediaType: p.mediaType,
       }))
     )
@@ -213,14 +241,81 @@ export async function addGeneratedPhotos(
 
 export async function getAllGeneratedPhotos(
   authId: string
-): Promise<GeneratedPhoto[]> {
+): Promise<GeneratedPhotoWithSignedUrl[]> {
   const user = await getUserByAuthId(authId);
   if (!user) return [];
 
-  return db.query.generatedPhotos.findMany({
+  const dbPhotos = await db.query.generatedPhotos.findMany({
     where: eq(generatedPhotos.userId, user.id),
     orderBy: (photos, { desc }) => [desc(photos.createdAt)],
   });
+
+  // Generate signed URLs for all photos
+  return Promise.all(
+    dbPhotos.map(async (photo) => ({
+      id: photo.id,
+      objectKey: photo.objectKey,
+      url: await getSignedUrl(photo.objectKey),
+      mediaType: photo.mediaType,
+      createdAt: photo.createdAt,
+    }))
+  );
+}
+
+export interface PaginatedPhotosResult {
+  photos: GeneratedPhotoWithSignedUrl[];
+  hasMore: boolean;
+  total: number;
+}
+
+export async function getGeneratedPhotosPaginated(
+  page: number = 0,
+  limit: number = 15
+): Promise<PaginatedPhotosResult> {
+  // Get auth from server session
+  const supabase = await createServerSupabaseClient();
+  const { data: { user: authUser } } = await supabase.auth.getUser();
+  
+  if (!authUser) {
+    return { photos: [], hasMore: false, total: 0 };
+  }
+
+  const user = await getUserByAuthId(authUser.id);
+  if (!user) return { photos: [], hasMore: false, total: 0 };
+
+  const offset = page * limit;
+
+  // Get total count
+  const countResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(generatedPhotos)
+    .where(eq(generatedPhotos.userId, user.id));
+  const total = Number(countResult[0]?.count ?? 0);
+
+  // Get paginated photos
+  const dbPhotos = await db.query.generatedPhotos.findMany({
+    where: eq(generatedPhotos.userId, user.id),
+    orderBy: (photos, { desc }) => [desc(photos.createdAt)],
+    limit: limit,
+    offset: offset,
+  });
+
+  // Generate signed URLs for all photos
+  const photosWithSignedUrls = await Promise.all(
+    dbPhotos.map(async (photo) => ({
+      id: photo.id,
+      objectKey: photo.objectKey,
+      url: await getSignedUrl(photo.objectKey),
+      mediaType: photo.mediaType,
+      createdAt: photo.createdAt,
+    }))
+  );
+
+  return {
+    photos: photosWithSignedUrls,
+    hasMore: offset + dbPhotos.length < total,
+    total,
+  };
 }
 
 // ============ Photo Slot Operations ============

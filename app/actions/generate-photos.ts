@@ -1,12 +1,13 @@
 "use server";
 
-import { FilePart, generateText, Output } from "ai";
-import { put } from "@vercel/blob";
+import { FilePart, generateImage, generateText, Output } from "ai";
+import { uploadToR2, getSignedUrl } from "@/lib/r2";
 import { addGeneratedPhotos, setPhotoSlot, getUserProfile, deductBalance } from "./db";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { google } from "@ai-sdk/google";
 import sharp from "sharp";
 import { z } from "zod";
+import { openai } from '@ai-sdk/openai';
 
 export interface GeneratedPhoto {
   id: string;
@@ -121,19 +122,15 @@ export async function generatePhotos(
         });
         const [file] = result.files;
         
-        // Convert base64 to buffer, compress, and upload to Vercel Blob
+        // Convert base64 to buffer, compress, and upload to R2
         const rawBuffer = Buffer.from(file.base64, "base64");
         const buffer = await compressImage(rawBuffer, file.mediaType);
-        const extension = file.mediaType.split("/")[1] || "png";
-        const filename = `generated-${Date.now()}-${index}.${extension}`;
         
-        const blob = await put(filename, buffer, {
-          access: "public",
-          contentType: file.mediaType,
-        });
+        // Upload to R2 - returns object key (not URL)
+        const objectKey = await uploadToR2(buffer, file.mediaType);
 
         return {
-          url: blob.url,
+          objectKey,
           mediaType: file.mediaType,
         };
       })
@@ -144,26 +141,29 @@ export async function generatePhotos(
     const usedSlots = new Set(updatedProfile?.photos.map((p) => p.slot) ?? []);
     const emptySlots = [0, 1, 2, 3, 4, 5].filter((s) => !usedSlots.has(s));
 
-    // Save all generated photos to database
+    // Save all generated photos to database (stores object keys, not URLs)
     const savedPhotos = await addGeneratedPhotos(
       authId,
       generatedPhotosRaw.map((p) => ({
-        url: p.url,
+        objectKey: p.objectKey,
         mediaType: p.mediaType,
       }))
     );
 
-    // Assign photos to empty slots
+    // Assign photos to empty slots and generate signed URLs for client
     const photosWithSlots: GeneratedPhoto[] = [];
     for (let i = 0; i < savedPhotos.length; i++) {
       const photo = savedPhotos[i];
       const slot = emptySlots[i];
+      
+      // Generate signed URL for client to display
+      const signedUrl = await getSignedUrl(photo.objectKey);
 
       if (slot !== undefined) {
         await setPhotoSlot(authId, photo.id, slot);
         photosWithSlots.push({
           id: photo.id,
-          url: photo.url,
+          url: signedUrl,
           mediaType: photo.mediaType,
           slot,
         });
@@ -171,7 +171,7 @@ export async function generatePhotos(
         // No empty slot available, just return photo without slot
         photosWithSlots.push({
           id: photo.id,
-          url: photo.url,
+          url: signedUrl,
           mediaType: photo.mediaType,
         });
       }
@@ -195,73 +195,106 @@ export async function generatePhotos(
 }
 
 // Fast preview model for unauthenticated users
-const previewModel = google("gemini-2.5-flash-image");
+const previewModel = openai.image("gpt-image-1-mini");
+
+// Toggle for preview photo generation - set to "false" to use placeholder images instead
+const PREVIEW_GENERATION_ENABLED = process.env.PREVIEW_GENERATION_ENABLED !== "false";
+
+// Picsum image IDs that feature people (curated list)
+const PEOPLE_IMAGE_IDS = [
+  1012, 1025, 1074, 64, 177, 219, 633, 838, 1027, 
+  1062, 1071, 1076, 203, 447, 660, 823, 836, 903
+];
+
+async function generatePlaceholderPhotos(): Promise<PreviewPhoto[]> {
+  // Pick 3 random images from the curated people list
+  const shuffled = [...PEOPLE_IMAGE_IDS].sort(() => Math.random() - 0.5);
+  const selectedIds = shuffled.slice(0, 6);
+  
+  const photos = await Promise.all(
+    selectedIds.map(async (imageId, index) => {
+      // Lorem Picsum with specific image ID that contains people
+      const response = await fetch(`https://picsum.photos/id/${imageId}/1024/1024`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch placeholder image: ${response.statusText}`);
+      }
+      
+      const arrayBuffer = await response.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      
+      // Apply heavy blur to make unrecognizable
+      const blurredBuffer = await sharp(buffer)
+        .blur(200)
+        .jpeg({ quality: 60 })
+        .toBuffer();
+      
+      const blurredBase64 = blurredBuffer.toString("base64");
+      const dataUrl = `data:image/jpeg;base64,${blurredBase64}`;
+      
+      return {
+        id: `preview-${Date.now()}-${index}`,
+        dataUrl,
+        slot: index,
+      };
+    })
+  );
+  
+  return photos;
+}
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 export async function generatePreviewPhotos(
   formData: FormData
 ): Promise<GeneratePreviewPhotosResult> {
   try {
+    console.log("PREVIEW_GENERATION_ENABLED", PREVIEW_GENERATION_ENABLED);
+    // If preview generation is disabled, return placeholder blurred photos
+    if (!PREVIEW_GENERATION_ENABLED) {
+      const [result] = await Promise.allSettled([generatePlaceholderPhotos(), sleep(6_000)]);
+      if (result.status === "fulfilled") {
+        return {
+          success: true,
+          photos: result.value,
+        }
+      }
+      return {
+        success: false,
+        error: result.reason instanceof Error ? result.reason.message : "Unknown error occurred",
+      }
+    }
+
     // Get the uploaded images, count, and prompt from formData
     const images = formData.getAll("images") as File[];
-    const count = parseInt(formData.get("count") as string, 10) || 1;
-    const userPrompt = (formData.get("prompt") as string) || "";
 
-    if (!images.length) {
-      return { success: false, error: "No images provided" };
-    }
-
-    if (count < 1 || count > 6) {
-      return { success: false, error: "Count must be between 1 and 6" };
-    }
-
-    // Generate simple prompts for preview (faster than calling another model)
-    const basePrompts = [
-      "A natural, attractive profile photo with good lighting",
-      "A friendly, approachable portrait photo",
-      "A casual, confident profile picture",
-      "A warm, inviting headshot photo",
-      "A relaxed, genuine portrait",
-      "An engaging, personable profile photo",
+    // Hardcoded prompts for preview photos - varied scenarios for dating profile
+    const previewPrompts = [
+      "A warm, genuine smile in natural outdoor lighting, looking directly at the camera with confident eye contact",
+      "An active outdoor photo showing personality - hiking, at the beach, or in a park with natural scenery",
+      "A stylish, well-dressed photo at a social setting like a rooftop bar or restaurant, looking confident and fun",
     ];
 
     const files = await Promise.all(
-      images.map(async (image) => ({
-        type: "file",
-        mediaType: image.type,
-        data: await image.arrayBuffer(),
-      }) as FilePart)
+      images.map(async (image) => await image.arrayBuffer())
     );
 
     // Generate preview photos with fast model - returns blurred base64
-    const generatedPhotos = await Promise.all(
-      Array.from({ length: count }, async (_, index) => {
-        const promptText = userPrompt || basePrompts[index % basePrompts.length];
-        
-        const result = await generateText({
+    const generatedPhotos = await Promise.all(previewPrompts.map(async (promptText, index) => {
+        // Always use the hardcoded prompts for variety (ignore userPrompt for previews)
+        const result = await generateImage({
           model: previewModel,
-          prompt: [{
-            role: "user",
-            content: [
-              { type: "text", text: promptText },
-              ...files
-            ]
-          }],
-          providerOptions: {
-            google: {
-              imageConfig: {
-                aspectRatio: '1:1',
-                // No imageSize specified - uses default lower resolution
-              },
-            },
+          prompt: {
+            text: promptText,
+            images: files,
           },
+          size: "1024x1024",
         });
-
-        const [file] = result.files;
         
         // Apply heavy blur server-side using sharp (cannot be bypassed by client)
-        const rawBuffer = Buffer.from(file.base64, "base64");
+        const rawBuffer = Buffer.from(result.image.base64, "base64");
         const blurredBuffer = await sharp(rawBuffer)
-          .blur(30) // Heavy blur - makes image unrecognizable but shows colors/shapes
+          .blur(40) // Heavy blur - makes image unrecognizable but shows colors/shapes
           .jpeg({ quality: 60 }) // Lower quality for previews
           .toBuffer();
         
